@@ -131,8 +131,9 @@ require_timer() {
 
 available_kb=$(df --output=avail -k "$base" | tail -n1)
 ((available_kb >= 2 * 1024 * 1024)) || { echo "less than 2 GiB free" >&2; exit 1; }
-curl --fail --silent --show-error --proxy "$proxy" --max-time 20 \
-  --output /dev/null https://api.github.com/zen
+curl --fail --silent --show-error --proxy "$proxy" \
+  --connect-timeout 10 --max-time 60 --retry 5 --retry-all-errors \
+  --retry-delay 2 --output /dev/null https://api.github.com/zen
 prepare_release
 
 rollback_dir=$(mktemp -d "$base/rollback/$sha.XXXXXX")
