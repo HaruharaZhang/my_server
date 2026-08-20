@@ -4,6 +4,7 @@ set -euo pipefail
 script=$(cd "$(dirname "$0")/.." && pwd)/server/deploy-my-server
 bash -n "$script"
 "$script" status >/dev/null
+grep -q -- '--retry-all-errors' "$script"
 
 if "$script" deploy invalid webpage >/dev/null 2>&1; then
   echo 'invalid SHA was accepted' >&2
