@@ -130,6 +130,18 @@ require_timer() {
   systemctl is-active --quiet "$1"
 }
 
+require_listener() {
+  local port=$1 attempt
+  for ((attempt=1; attempt<=20; attempt++)); do
+    if grep -qE "127\\.0\\.0\\.1:$port\\b" < <(ss -ltn); then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "health check failed: listener 127.0.0.1:$port is unavailable" >&2
+  return 1
+}
+
 available_kb=$(df --output=avail -k "$base" | tail -n1)
 ((available_kb >= 2 * 1024 * 1024)) || { echo "less than 2 GiB free" >&2; exit 1; }
 prepare_release
@@ -159,6 +171,7 @@ record_unit() {
 
 restore_transaction() {
   local index path name unit enabled active
+  trap - ERR
   set +e
   echo "deployment failed; restoring previous component state" >&2
   for ((index=${#backup_names[@]}-1; index>=0; index--)); do
@@ -179,6 +192,7 @@ restore_transaction() {
       [[ "$active" != active ]] && systemctl stop "$unit" >/dev/null 2>&1
     done < "$rollback_dir/units.tsv"
   fi
+  exit 1
 }
 trap restore_transaction ERR
 
@@ -306,7 +320,7 @@ deploy_component() {
       /opt/dyyjs-youtube/venv/bin/python -m compileall -q /opt/dyyjs-youtube/app
       systemctl restart dyyjs-youtube-pot.service dyyjs-youtube.service
       systemctl is-active --quiet dyyjs-youtube.service
-      ss -ltn | grep -qE '127\.0\.0\.1:8090\b'
+      require_listener 8090
       curl_status /youtube 403
       curl_status /youtube/history/ 200
       ;;
@@ -316,7 +330,7 @@ deploy_component() {
       /opt/dyyjs-bilibili/venv/bin/python -m compileall -q /opt/dyyjs-bilibili/app
       systemctl restart dyyjs-bilibili.service
       systemctl is-active --quiet dyyjs-bilibili.service
-      ss -ltn | grep -qE '127\.0\.0\.1:8091\b'
+      require_listener 8091
       curl_status /bilibili 403
       curl_status /bilibili/history/ 200
       ;;
@@ -332,7 +346,7 @@ deploy_component() {
       install -m 0644 "$release/z_my_server/minecraft-server/index.html" /var/www/dyyjs/minecraft/index.html
       ! systemctl is-active --quiet dyyjs-minecraft.service
       [[ "$(systemctl is-enabled dyyjs-minecraft.service 2>/dev/null || true)" == disabled ]]
-      ! ss -ltn | grep -qE ':(23333|25575)\b'
+      ! grep -qE ':(23333|25575)\b' < <(ss -ltn)
       curl_status /minecraft/ 200
       ;;
     deployment)
