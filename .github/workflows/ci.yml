@@ -56,7 +56,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: z_my_server/xiaoyu/VRChat-Category/package-lock.json
       - run: npm ci
@@ -72,6 +72,10 @@ jobs:
           find deploy z_my_server -type f -name '*.sh' -print0 | xargs -0 shellcheck --severity=warning
           find z_my_server -type f -name '*.json' \
             -not -path '*/node_modules/*' -not -path '*/dist/*' -print0 | xargs -0 -n1 jq empty
+      - name: Test deployment controls
+        run: |
+          deploy/tests/test-select-components.sh
+          deploy/tests/test-deploy-contract.sh
       - name: Validate JavaScript
         run: |
           find z_my_server/status-dashboard z_my_server/youtube-relay/chrome-extension \

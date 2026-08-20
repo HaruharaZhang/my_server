@@ -1,11 +1,34 @@
 name: Deploy production
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deployment operation
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+        required: true
+      target_sha:
+        description: Full main commit SHA (empty uses current main)
+        type: string
+        required: false
+      components:
+        description: Comma-separated components (empty selects changed components)
+        type: string
+        required: false
+      rollback_to:
+        description: Full release SHA for rollback
+        type: string
+        required: false
 
 permissions:
+  actions: read
+  checks: read
   contents: read
 
 concurrency:
@@ -15,26 +38,73 @@ concurrency:
 jobs:
   deploy:
     name: Deploy changed components
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.repository.full_name == github.repository)
     runs-on: ubuntu-latest
     environment: production
-    env:
-      ASTRO_TELEMETRY_DISABLED: "1"
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        if: vars.DEPLOY_ENABLED == 'true'
-        with:
-          fetch-depth: 2
-      - name: Select components
-        if: vars.DEPLOY_ENABLED == 'true'
-        id: changes
+      - name: Resolve target
+        id: target
         env:
-          BEFORE: ${{ github.event.before || '0000000000000000000000000000000000000000' }}
-          SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SHA: ${{ inputs.target_sha }}
+          MAIN_SHA: ${{ github.sha }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          components=$(deploy/ci/select-components.sh "$BEFORE" "$SHA")
-          echo "components=$components" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == workflow_run ]]; then
+            sha=$WORKFLOW_SHA
+          elif [[ -n "$INPUT_SHA" ]]; then
+            sha=$INPUT_SHA
+          else
+            sha=$MAIN_SHA
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ steps.target.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Validate manual target
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          ROLLBACK_TO: ${{ inputs.rollback_to }}
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          test "$ACTOR" = HaruharaZhang
+          if [[ "$OPERATION" == rollback ]]; then
+            [[ "$ROLLBACK_TO" =~ ^[0-9a-f]{40}$ ]]
+            candidate=$ROLLBACK_TO
+          else
+            candidate=$SHA
+          fi
+          git fetch origin main
+          git merge-base --is-ancestor "$candidate" origin/main
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/commits/$candidate/check-runs" \
+            --jq '.check_runs[] | select(.name == "CI / required") | .conclusion' | tail -n1)
+          test "$conclusion" = success
+
+      - name: Check deployment switch
+        id: enabled
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+        run: |
+          if [[ "$DEPLOY_ENABLED" == true ]]; then
+            echo 'value=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Deployment is disabled by DEPLOY_ENABLED'
+            echo 'value=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Configure SSH
-        if: vars.DEPLOY_ENABLED == 'true' && steps.changes.outputs.components != ''
+        if: steps.enabled.outputs.value == 'true'
         env:
           PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
@@ -43,12 +113,60 @@ jobs:
           install -m 600 /dev/null ~/.ssh/deploy_key
           printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Fetch and activate release
-        if: vars.DEPLOY_ENABLED == 'true' && steps.changes.outputs.components != ''
+
+      - name: Read production state
+        if: steps.enabled.outputs.value == 'true' && inputs.operation != 'rollback'
+        env:
+          HOST: ${{ vars.DEPLOY_HOST }}
+          PORT: ${{ vars.DEPLOY_PORT }}
+          USER: ${{ vars.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" \
+            sudo /usr/local/sbin/deploy-my-server status > /tmp/component-state.tsv
+
+      - name: Select components
+        if: steps.enabled.outputs.value == 'true' && inputs.operation != 'rollback'
+        id: changes
+        env:
+          EXPLICIT: ${{ inputs.components }}
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          if [[ -n "$EXPLICIT" ]]; then
+            components=$EXPLICIT
+          else
+            components=$(deploy/ci/select-components.sh "$SHA" /tmp/component-state.tsv)
+          fi
+          echo "components=$components" >> "$GITHUB_OUTPUT"
+          echo "Selected components: ${components:-none}"
+
+      - name: Deploy and verify
+        if: >-
+          steps.enabled.outputs.value == 'true' &&
+          inputs.operation != 'rollback' &&
+          steps.changes.outputs.components != ''
         env:
           COMPONENTS: ${{ steps.changes.outputs.components }}
           HOST: ${{ vars.DEPLOY_HOST }}
           PORT: ${{ vars.DEPLOY_PORT }}
           USER: ${{ vars.DEPLOY_USER }}
-          SHA: ${{ github.sha }}
-        run: ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" sudo /usr/local/sbin/deploy-my-server "$SHA" "$COMPONENTS"
+          SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" \
+            sudo /usr/local/sbin/deploy-my-server deploy "$SHA" "$COMPONENTS"
+
+      - name: Roll back
+        if: steps.enabled.outputs.value == 'true' && inputs.operation == 'rollback'
+        env:
+          COMPONENTS: ${{ inputs.components }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          PORT: ${{ vars.DEPLOY_PORT }}
+          ROLLBACK_TO: ${{ inputs.rollback_to }}
+          USER: ${{ vars.DEPLOY_USER }}
+        run: |
+          [[ -n "$COMPONENTS" && "$ROLLBACK_TO" =~ ^[0-9a-f]{40}$ ]]
+          ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" \
+            sudo /usr/local/sbin/deploy-my-server rollback "$ROLLBACK_TO" "$COMPONENTS"
+
+      - name: Remove SSH material
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ~/.ssh/known_hosts

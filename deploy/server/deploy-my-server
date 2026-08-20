@@ -1,82 +1,197 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-sha=${1:?commit SHA is required}
-requested=${2:?component list is required}
 base=/opt/my-server
-incoming="$base/incoming/$sha"
-archive="$base/incoming/$sha.tar.gz"
-release="$base/releases/$sha"
-rollback_dir="$base/rollback/$sha"
+state_dir="$base/state/components"
 archive_base=https://codeload.github.com/HaruharaZhang/my_server/tar.gz
 proxy=http://127.0.0.1:7890
 node_bin=/opt/dyyjs-youtube/node24-runtime/bin
+lock_file=/run/lock/my-server-deploy.lock
+allowed_components=(webpage xiaoyu status news youtube bilibili horizon minecraft deployment)
 
-[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid commit SHA" >&2; exit 2; }
-[[ ! -e "$release" ]] || { echo "release already exists" >&2; exit 2; }
+usage() {
+  echo "usage: deploy-my-server status | deploy <sha> <components> | rollback <sha> <components>" >&2
+  exit 2
+}
 
-declare -A allowed=([webpage]=1 [xiaoyu]=1 [status]=1 [news]=1 [youtube]=1 [bilibili]=1 [horizon]=1 [minecraft]=1)
-IFS=, read -r -a components <<< "$requested"
-for component in "${components[@]}"; do
-  if [[ "$component" == all ]]; then
-    components=(webpage xiaoyu status news youtube bilibili horizon minecraft)
-    break
-  fi
-  [[ ${allowed[$component]+yes} ]] || { echo "invalid component: $component" >&2; exit 2; }
-done
+valid_sha() {
+  [[ "$1" =~ ^[0-9a-f]{40}$ ]]
+}
 
-if [[ -e "$incoming" ]]; then
-  [[ -d "$incoming" && ! -L "$incoming" ]] || { echo "unsafe incoming path" >&2; exit 2; }
-  rm -rf -- "$incoming"
+validate_components() {
+  local requested=$1 component allowed
+  [[ "$requested" =~ ^[a-z]+(,[a-z]+)*$ ]] || {
+    echo "invalid component list: $requested" >&2
+    exit 2
+  }
+  IFS=, read -r -a components <<< "$requested"
+  for component in "${components[@]}"; do
+    allowed=false
+    for candidate in "${allowed_components[@]}"; do
+      [[ "$component" == "$candidate" ]] && allowed=true
+    done
+    [[ "$allowed" == true ]] || {
+      echo "invalid component: $component" >&2
+      exit 2
+    }
+  done
+}
+
+show_status() {
+  local component state
+  for component in "${allowed_components[@]}"; do
+    state="$state_dir/$component.sha"
+    [[ -f "$state" ]] && printf '%s\t%s\n' "$component" "$(<"$state")"
+  done
+  return 0
+}
+
+[[ ${1-} ]] || usage
+operation=$1
+if [[ "$operation" == status ]]; then
+  show_status
+  exit 0
 fi
-rm -f -- "$archive"
-install -d -o deployer -g deployer -m 0700 "$incoming"
-runuser -u deployer -- curl --fail --location --silent --show-error \
-  --connect-timeout 15 --max-time 600 --retry 5 --retry-all-errors \
-  --retry-delay 2 --proxy "$proxy" --output "$archive" "$archive_base/$sha"
-expected_root="my_server-$sha"
-tar -tzf "$archive" | awk -F/ -v root="$expected_root" '
-  $1 != root { print "unexpected archive path: " $0 > "/dev/stderr"; exit 1 }
-'
-runuser -u deployer -- tar -xzf "$archive" --strip-components=1 \
-  --no-same-owner --no-same-permissions -C "$incoming"
-rm -f -- "$archive"
+[[ "$operation" == deploy || "$operation" == rollback ]] || usage
+[[ $# -eq 3 ]] || usage
+sha=$2
+requested=$3
+valid_sha "$sha" || { echo "invalid commit SHA" >&2; exit 2; }
+validate_components "$requested"
 
-if [[ " ${components[*]} " == *" xiaoyu "* ]]; then
-  runuser -u deployer -- env \
-    "PATH=$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-    "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" ASTRO_TELEMETRY_DISABLED=1 \
-    bash -c 'cd "$1"; npm ci --ignore-scripts; npm run build' _ \
-    "$incoming/z_my_server/xiaoyu/VRChat-Category"
-fi
+exec 9>"$lock_file"
+flock -n 9 || { echo "another deployment is already running" >&2; exit 3; }
 
+install -d -o deployer -g deployer -m 0750 "$base"
+install -d -o deployer -g deployer -m 0700 "$base/incoming"
 install -d -o root -g root -m 0755 "$base/releases"
-mv "$incoming" "$release"
-chown -R root:root "$release"
-find "$release" -type d -exec chmod go-w {} +
-find "$release" -type f -exec chmod go-w {} +
+install -d -o root -g root -m 0700 "$base/rollback" "$base/state" "$state_dir"
 
-install -d -o root -g root -m 0700 "$rollback_dir"
+release="$base/releases/$sha"
+if [[ "$operation" == rollback && ! -d "$release" ]]; then
+  echo "rollback release is not present on the server: $sha" >&2
+  exit 2
+fi
+prepare_release() {
+  local incoming archive expected_root link resolved
+  if [[ -d "$release" && -f "$release/.commit-sha" && "$(<"$release/.commit-sha")" == "$sha" ]]; then
+    return
+  fi
+  [[ ! -e "$release" ]] || { echo "unsafe or incomplete release exists: $release" >&2; exit 2; }
 
-backup_tree() {
-  local source=$1 name=$2
-  [[ -e "$source" ]] && cp -al "$source" "$rollback_dir/$name"
+  incoming="$base/incoming/$sha"
+  archive="$base/incoming/$sha.tar.gz"
+  if [[ -e "$incoming" ]]; then
+    [[ -d "$incoming" && ! -L "$incoming" ]] || { echo "unsafe incoming path" >&2; exit 2; }
+    rm -rf -- "$incoming"
+  fi
+  rm -f -- "$archive"
+  install -d -o deployer -g deployer -m 0700 "$incoming"
+  runuser -u deployer -- curl --fail --location --silent --show-error \
+    --connect-timeout 15 --max-time 600 --retry 5 --retry-all-errors \
+    --retry-delay 2 --proxy "$proxy" --output "$archive" "$archive_base/$sha"
+  expected_root="my_server-$sha"
+  tar -tzf "$archive" | awk -F/ -v root="$expected_root" '
+    $1 != root { print "unexpected archive path: " $0 > "/dev/stderr"; exit 1 }
+  '
+  runuser -u deployer -- tar -xzf "$archive" --strip-components=1 \
+    --no-same-owner --no-same-permissions -C "$incoming"
+  rm -f -- "$archive"
+
+  while IFS= read -r -d '' link; do
+    resolved=$(realpath -m "$link")
+    [[ "$resolved" == "$incoming"/* ]] || {
+      echo "release symlink escapes archive root: $link" >&2
+      exit 1
+    }
+  done < <(find "$incoming" -type l -print0)
+
+  printf '%s\n' "$sha" > "$incoming/.commit-sha"
+  chown -R root:root "$incoming"
+  find "$incoming" -type d -exec chmod go-w {} +
+  find "$incoming" -type f -exec chmod go-w {} +
+  mv "$incoming" "$release"
 }
 
-rollback() {
-  local exit_code=$?
-  trap - ERR
-  echo "deployment failed; restoring previous component files" >&2
-  if [[ -d "$rollback_dir/status-app" ]]; then rm -rf /opt/dyyjs-status/app; cp -a "$rollback_dir/status-app" /opt/dyyjs-status/app; fi
-  if [[ -d "$rollback_dir/news-app" ]]; then rm -rf /opt/dyyjs-news/app; cp -a "$rollback_dir/news-app" /opt/dyyjs-news/app; fi
-  if [[ -d "$rollback_dir/youtube-app" ]]; then rm -rf /opt/dyyjs-youtube/app; cp -a "$rollback_dir/youtube-app" /opt/dyyjs-youtube/app; systemctl restart dyyjs-youtube.service || true; fi
-  if [[ -d "$rollback_dir/bilibili-app" ]]; then rm -rf /opt/dyyjs-bilibili/app; cp -a "$rollback_dir/bilibili-app" /opt/dyyjs-bilibili/app; systemctl restart dyyjs-bilibili.service || true; fi
-  if [[ -f "$rollback_dir/web-index.html" ]]; then cp -a "$rollback_dir/web-index.html" /var/www/dyyjs/index.html; fi
-  if [[ -f "$rollback_dir/news-placeholder.html" ]]; then cp -a "$rollback_dir/news-placeholder.html" /var/www/dyyjs/news-placeholder.html; fi
-  if [[ -f "$rollback_dir/xiaoyu-target" ]]; then ln -sfn "$(cat "$rollback_dir/xiaoyu-target")" /var/www/dyyjs/xiaoyu; fi
-  exit "$exit_code"
+curl_status() {
+  local path=$1 expected=$2 code
+  code=$(curl --silent --show-error --insecure --max-time 20 \
+    --resolve dyyjs.com:443:127.0.0.1 -o /dev/null -w '%{http_code}' \
+    "https://dyyjs.com$path")
+  [[ "$code" == "$expected" ]] || {
+    echo "health check failed: $path returned $code, expected $expected" >&2
+    return 1
+  }
 }
-trap rollback ERR
+
+require_timer() {
+  systemctl is-enabled --quiet "$1"
+  systemctl is-active --quiet "$1"
+}
+
+available_kb=$(df --output=avail -k "$base" | tail -n1)
+((available_kb >= 2 * 1024 * 1024)) || { echo "less than 2 GiB free" >&2; exit 1; }
+curl --fail --silent --show-error --proxy "$proxy" --max-time 20 \
+  --output /dev/null https://api.github.com/zen
+prepare_release
+
+rollback_dir=$(mktemp -d "$base/rollback/$sha.XXXXXX")
+declare -a backup_names=() backup_paths=() state_units=()
+
+backup_item() {
+  local path=$1 name=$2
+  backup_names+=("$name")
+  backup_paths+=("$path")
+  if [[ -e "$path" || -L "$path" ]]; then
+    cp -al -- "$path" "$rollback_dir/$name"
+  else
+    touch "$rollback_dir/$name.missing"
+  fi
+}
+
+record_unit() {
+  local unit=$1 enabled active
+  for existing in "${state_units[@]-}"; do [[ "$existing" == "$unit" ]] && return; done
+  state_units+=("$unit")
+  enabled=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+  active=$(systemctl is-active "$unit" 2>/dev/null || true)
+  printf '%s\t%s\t%s\n' "$unit" "$enabled" "$active" >> "$rollback_dir/units.tsv"
+}
+
+restore_transaction() {
+  local index path name unit enabled active
+  set +e
+  echo "deployment failed; restoring previous component state" >&2
+  for ((index=${#backup_names[@]}-1; index>=0; index--)); do
+    name=${backup_names[$index]}
+    path=${backup_paths[$index]}
+    rm -rf -- "$path"
+    if [[ ! -f "$rollback_dir/$name.missing" ]]; then
+      install -d -m 0755 "$(dirname "$path")"
+      cp -a -- "$rollback_dir/$name" "$path"
+    fi
+  done
+  systemctl daemon-reload
+  if [[ -f "$rollback_dir/units.tsv" ]]; then
+    while IFS=$'\t' read -r unit enabled active; do
+      [[ "$enabled" == enabled ]] && systemctl enable "$unit" >/dev/null 2>&1
+      [[ "$enabled" == disabled ]] && systemctl disable "$unit" >/dev/null 2>&1
+      [[ "$active" == active ]] && systemctl restart "$unit" >/dev/null 2>&1
+      [[ "$active" != active ]] && systemctl stop "$unit" >/dev/null 2>&1
+    done < "$rollback_dir/units.tsv"
+  fi
+}
+trap restore_transaction ERR
+
+install_units() {
+  local source=$1 unit
+  [[ -d "$source" ]] || return
+  for unit in "$source"/*; do
+    [[ -f "$unit" ]] || continue
+    install -m 0644 "$unit" "/etc/systemd/system/$(basename "$unit")"
+  done
+  systemctl daemon-reload
+}
 
 sync_app() {
   local source=$1 target=$2
@@ -84,73 +199,165 @@ sync_app() {
   rsync -a --delete --exclude deploy.sh --exclude systemd --exclude __pycache__ "$source/" "$target/"
 }
 
-for component in "${components[@]}"; do
+snapshot_component() {
+  case "$1" in
+    webpage)
+      backup_item /var/www/dyyjs/index.html webpage-index
+      backup_item /var/www/dyyjs/news-placeholder.html webpage-news-placeholder
+      ;;
+    xiaoyu) backup_item /var/www/dyyjs/xiaoyu xiaoyu-link ;;
+    status)
+      backup_item /opt/dyyjs-status/app status-app
+      backup_item /var/www/dyyjs/status/index.html status-index
+      backup_item /var/www/dyyjs/status/assets status-assets
+      for unit in dyyjs-status.service dyyjs-status.timer dyyjs-status-sampler.service; do
+        backup_item "/etc/systemd/system/$unit" "unit-$unit"; record_unit "$unit"
+      done
+      ;;
+    news)
+      backup_item /opt/dyyjs-news/app news-app
+      for unit in dyyjs-news.service dyyjs-news.timer; do
+        backup_item "/etc/systemd/system/$unit" "unit-$unit"; record_unit "$unit"
+      done
+      ;;
+    youtube)
+      backup_item /opt/dyyjs-youtube/app youtube-app
+      for unit in dyyjs-youtube.service dyyjs-youtube-pot.service dyyjs-youtube-cleanup.service dyyjs-youtube-cleanup.timer dyyjs-youtube-update.service dyyjs-youtube-update.timer; do
+        backup_item "/etc/systemd/system/$unit" "unit-$unit"; record_unit "$unit"
+      done
+      ;;
+    bilibili)
+      backup_item /opt/dyyjs-bilibili/app bilibili-app
+      backup_item /etc/systemd/system/dyyjs-bilibili.service unit-dyyjs-bilibili.service
+      record_unit dyyjs-bilibili.service
+      ;;
+    horizon)
+      backup_item /opt/dyyjs-horizon/app horizon-app
+      backup_item /opt/dyyjs-horizon/profiles horizon-profiles
+      backup_item /opt/dyyjs-horizon/data/config.json horizon-config
+      backup_item /opt/dyyjs-horizon/jekyll/_config.production.yml horizon-jekyll-config
+      backup_item /opt/dyyjs-horizon/jekyll/Gemfile horizon-gemfile
+      backup_item /opt/dyyjs-horizon/jekyll/Gemfile.lock horizon-gemfile-lock
+      backup_item /usr/local/sbin/run-dyyjs-horizon horizon-runner
+      for unit in dyyjs-horizon.service dyyjs-horizon.timer; do
+        backup_item "/etc/systemd/system/$unit" "unit-$unit"; record_unit "$unit"
+      done
+      ;;
+    minecraft)
+      backup_item /opt/dyyjs-minecraft/backup-world.sh minecraft-backup
+      backup_item /opt/dyyjs-minecraft/rcon.py minecraft-rcon
+      backup_item /var/www/dyyjs/minecraft/index.html minecraft-index
+      record_unit dyyjs-minecraft.service
+      ;;
+    deployment) backup_item /usr/local/sbin/deploy-my-server deployment-script ;;
+  esac
+}
+
+for component in "${components[@]}"; do snapshot_component "$component"; done
+
+deploy_component() {
+  local component=$1 build_dir target
   case "$component" in
     webpage)
-      [[ -f /var/www/dyyjs/index.html ]] && cp -a /var/www/dyyjs/index.html "$rollback_dir/web-index.html"
-      [[ -f /var/www/dyyjs/news-placeholder.html ]] && cp -a /var/www/dyyjs/news-placeholder.html "$rollback_dir/news-placeholder.html"
       install -m 0644 "$release/z_my_server/webpage/index.html" /var/www/dyyjs/index.html
       install -m 0644 "$release/z_my_server/webpage/news-placeholder.html" /var/www/dyyjs/news-placeholder.html
+      curl_status / 200
       ;;
     xiaoyu)
-      test -f "$release/z_my_server/xiaoyu/VRChat-Category/dist/index.html"
-      readlink -f /var/www/dyyjs/xiaoyu > "$rollback_dir/xiaoyu-target"
-      install -d -m 0755 /opt/dyyjs-xiaoyu/releases
-      install -d -m 0755 "/opt/dyyjs-xiaoyu/releases/$sha"
-      cp -a "$release/z_my_server/xiaoyu/VRChat-Category/dist/." "/opt/dyyjs-xiaoyu/releases/$sha/"
-      ln -sfn "/opt/dyyjs-xiaoyu/releases/$sha" /var/www/dyyjs/xiaoyu.new
+      build_dir=$(mktemp -d "$base/incoming/xiaoyu-$sha.XXXXXX")
+      cp -a "$release/z_my_server/xiaoyu/VRChat-Category/." "$build_dir/"
+      chown -R deployer:deployer "$build_dir"
+      runuser -u deployer -- env \
+        "PATH=$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+        "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" ASTRO_TELEMETRY_DISABLED=1 \
+        bash -c 'cd "$1"; npm ci --ignore-scripts; npm run build' _ "$build_dir"
+      test -f "$build_dir/dist/index.html"
+      target="/opt/dyyjs-xiaoyu/releases/$sha"
+      rm -rf -- "$target"
+      install -d -m 0755 "$target"
+      cp -a "$build_dir/dist/." "$target/"
+      rm -rf -- "$build_dir"
+      ln -sfn "$target" /var/www/dyyjs/xiaoyu.new
       mv -Tf /var/www/dyyjs/xiaoyu.new /var/www/dyyjs/xiaoyu
+      curl_status /xiaoyu/ 200
       ;;
     status)
-      backup_tree /opt/dyyjs-status/app status-app
       sync_app "$release/z_my_server/status-dashboard" /opt/dyyjs-status/app
+      install_units "$release/z_my_server/status-dashboard/systemd"
       install -m 0644 /opt/dyyjs-status/app/index.html /var/www/dyyjs/status/index.html
+      install -d -m 0755 /var/www/dyyjs/status/assets
       install -m 0644 /opt/dyyjs-status/app/assets/status.css /var/www/dyyjs/status/assets/status.css
       install -m 0644 /opt/dyyjs-status/app/assets/status.js /var/www/dyyjs/status/assets/status.js
       python3 -m compileall -q /opt/dyyjs-status/app
+      systemctl restart dyyjs-status-sampler.service
       systemctl start dyyjs-status.service
+      require_timer dyyjs-status.timer
+      curl_status /status/ 200
       ;;
     news)
-      backup_tree /opt/dyyjs-news/app news-app
       sync_app "$release/z_my_server/news-pipeline" /opt/dyyjs-news/app
+      install_units "$release/z_my_server/news-pipeline/systemd"
       /opt/dyyjs-news/venv/bin/python -m compileall -q /opt/dyyjs-news/app
+      require_timer dyyjs-news.timer
+      curl_status /news/ 200
       ;;
     youtube)
-      backup_tree /opt/dyyjs-youtube/app youtube-app
       sync_app "$release/z_my_server/youtube-relay" /opt/dyyjs-youtube/app
+      install_units "$release/z_my_server/youtube-relay/systemd"
       /opt/dyyjs-youtube/venv/bin/python -m compileall -q /opt/dyyjs-youtube/app
-      systemctl restart dyyjs-youtube.service
+      systemctl restart dyyjs-youtube-pot.service dyyjs-youtube.service
       systemctl is-active --quiet dyyjs-youtube.service
+      ss -ltn | grep -qE '127\.0\.0\.1:8090\b'
+      curl_status /youtube 403
+      curl_status /youtube/history/ 200
       ;;
     bilibili)
-      backup_tree /opt/dyyjs-bilibili/app bilibili-app
       sync_app "$release/z_my_server/bilibili-relay" /opt/dyyjs-bilibili/app
+      install_units "$release/z_my_server/bilibili-relay/systemd"
       /opt/dyyjs-bilibili/venv/bin/python -m compileall -q /opt/dyyjs-bilibili/app
       systemctl restart dyyjs-bilibili.service
       systemctl is-active --quiet dyyjs-bilibili.service
+      ss -ltn | grep -qE '127\.0\.0\.1:8091\b'
+      curl_status /bilibili 403
+      curl_status /bilibili/history/ 200
       ;;
     horizon)
       sync_app "$release/z_my_server/horizon-deployment" /opt/dyyjs-horizon-deploy
       /opt/dyyjs-horizon-deploy/scripts/install-server.sh
+      require_timer dyyjs-horizon.timer
+      curl_status /horizon/ 200
       ;;
     minecraft)
       install -m 0755 "$release/z_my_server/minecraft-server/backup-world.sh" /opt/dyyjs-minecraft/backup-world.sh
       install -m 0755 "$release/z_my_server/minecraft-server/rcon.py" /opt/dyyjs-minecraft/rcon.py
       install -m 0644 "$release/z_my_server/minecraft-server/index.html" /var/www/dyyjs/minecraft/index.html
+      ! systemctl is-active --quiet dyyjs-minecraft.service
+      [[ "$(systemctl is-enabled dyyjs-minecraft.service 2>/dev/null || true)" == disabled ]]
+      ! ss -ltn | grep -qE ':(23333|25575)\b'
+      curl_status /minecraft/ 200
+      ;;
+    deployment)
+      bash -n "$release/deploy/server/deploy-my-server"
+      [[ "$(<"$release/deploy/server/VERSION")" =~ ^[0-9]+$ ]]
+      install -o root -g root -m 0755 "$release/deploy/server/deploy-my-server" \
+        /usr/local/sbin/deploy-my-server.new
+      mv -f /usr/local/sbin/deploy-my-server.new /usr/local/sbin/deploy-my-server
       ;;
   esac
-done
+}
+
+for component in "${components[@]}"; do deploy_component "$component"; done
 
 trap - ERR
-
+for component in "${components[@]}"; do
+  printf '%s\n' "$sha" > "$state_dir/$component.sha.new"
+  chmod 0644 "$state_dir/$component.sha.new"
+  mv -f "$state_dir/$component.sha.new" "$state_dir/$component.sha"
+done
+printf '%s\t%s\t%s\t%s\n' "$(date --iso-8601=seconds)" "$operation" "$sha" "$requested" \
+  >> "$base/state/history.tsv"
 ln -sfn "$release" "$base/current.new"
 mv -Tf "$base/current.new" "$base/current"
-printf '%s %s\n' "$sha" "$requested" > "$base/deployed-release"
 rm -rf -- "$rollback_dir"
 
-mapfile -t old_releases < <(find "$base/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2-)
-if ((${#old_releases[@]})); then
-  rm -rf -- "${old_releases[@]}"
-fi
-
-echo "deployed $sha: $requested"
+echo "$operation completed for $sha: $requested"

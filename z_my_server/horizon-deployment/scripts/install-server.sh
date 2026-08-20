@@ -12,6 +12,19 @@ if [[ $(id -u) -ne 0 ]]; then
 fi
 test -f "$STAGING/patches/0001-dyyjs-model-router.patch"
 test -f /etc/dyyjs-news/env
+for command in git uv bundle ruby; do
+    command -v "$command" >/dev/null || {
+        echo "missing bootstrap dependency: $command" >&2
+        exit 1
+    }
+done
+if systemctl is-active --quiet dyyjs-horizon.service; then
+    echo "dyyjs-horizon.service is running; retry after the oneshot completes" >&2
+    exit 1
+fi
+
+timer_enabled=$(systemctl is-enabled dyyjs-horizon.timer 2>/dev/null || true)
+timer_active=$(systemctl is-active dyyjs-horizon.timer 2>/dev/null || true)
 
 id horizon >/dev/null 2>&1 || useradd --system --home-dir "$BASE" --shell /usr/sbin/nologin horizon
 install -d -o root -g root -m 0755 "$BASE"
@@ -19,20 +32,11 @@ install -d -o horizon -g horizon -m 0750 \
     "$BASE/data" "$BASE/jekyll" "$BASE/logs" "$BASE/state" "$BASE/bundle"
 install -d -o horizon -g horizon -m 0755 "$BASE/releases"
 
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3-venv python3-pip ruby-full build-essential zlib1g-dev
-
-if ! command -v uv >/dev/null; then
-    python3 -m pip install --break-system-packages \
-        --index-url https://mirrors.aliyun.com/pypi/simple/ uv
-fi
-if ! command -v bundle >/dev/null; then
-    HTTP_PROXY="$PROXY" HTTPS_PROXY="$PROXY" \
-        gem install bundler --version 2.5.23 --no-document
-fi
-
 candidate=$(mktemp -d /opt/horizon-candidate.XXXXXX)
+cleanup_candidate() {
+    [[ -d "$candidate" ]] && rm -rf "$candidate"
+}
+trap cleanup_candidate EXIT
 git -c http.proxy="$PROXY" clone --filter=blob:none --no-checkout \
     https://github.com/Thysrael/Horizon.git "$candidate"
 git -C "$candidate" config http.proxy "$PROXY"
@@ -75,6 +79,7 @@ su -s /bin/bash horizon -c \
 su -s /bin/bash horizon -c \
     "HTTP_PROXY=$PROXY HTTPS_PROXY=$PROXY BUNDLE_GEMFILE=$BASE/jekyll/Gemfile bundle install"
 
+rm -rf "$BASE/app.previous" "$BASE/profiles.previous"
 if [[ -d "$BASE/app" ]]; then mv "$BASE/app" "$BASE/app.previous"; fi
 mv "$BASE/app.new" "$BASE/app"
 if [[ -d "$BASE/profiles" ]]; then mv "$BASE/profiles" "$BASE/profiles.previous"; fi
@@ -84,6 +89,16 @@ install -o root -g root -m 0755 "$STAGING/scripts/run-dyyjs-horizon" /usr/local/
 install -o root -g root -m 0644 "$STAGING/systemd/dyyjs-horizon.service" /etc/systemd/system/dyyjs-horizon.service
 install -o root -g root -m 0644 "$STAGING/systemd/dyyjs-horizon.timer" /etc/systemd/system/dyyjs-horizon.timer
 systemctl daemon-reload
-systemctl disable dyyjs-horizon.timer >/dev/null 2>&1 || true
+if [[ "$timer_enabled" == enabled ]]; then
+    systemctl enable dyyjs-horizon.timer >/dev/null
+else
+    systemctl disable dyyjs-horizon.timer >/dev/null 2>&1 || true
+fi
+if [[ "$timer_active" == active ]]; then
+    systemctl restart dyyjs-horizon.timer
+else
+    systemctl stop dyyjs-horizon.timer
+fi
 
-echo "Horizon installed at $SOURCE_COMMIT; timer remains disabled"
+trap - EXIT
+echo "Horizon installed at $SOURCE_COMMIT; timer state preserved"

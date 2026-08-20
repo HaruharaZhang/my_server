@@ -1,38 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-before=${1:?before commit is required}
-after=${2:?after commit is required}
+target=${1:?target commit is required}
+state_file=${2:?component state file is required}
 
-if [[ "$before" =~ ^0+$ ]] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
-  changed=$(git ls-tree -r --name-only "$after")
-else
-  changed=$(git diff --name-only "$before" "$after")
-fi
-
-components=()
-add_component() {
-  local candidate=$1 existing
-  for existing in "${components[@]-}"; do
-    [[ "$existing" == "$candidate" ]] && return
-  done
-  components+=("$candidate")
+git cat-file -e "$target^{commit}" 2>/dev/null || {
+  echo "target commit is unavailable: $target" >&2
+  exit 2
+}
+[[ -f "$state_file" ]] || {
+  echo "component state file is unavailable: $state_file" >&2
+  exit 2
 }
 
-while IFS= read -r path; do
-  case "$path" in
-    z_my_server/webpage/*) add_component webpage ;;
-    z_my_server/xiaoyu/VRChat-Category/*) add_component xiaoyu ;;
-    z_my_server/status-dashboard/*) add_component status ;;
-    z_my_server/news-pipeline/*) add_component news ;;
-    z_my_server/youtube-relay/*) add_component youtube ;;
-    z_my_server/bilibili-relay/*) add_component bilibili ;;
-    z_my_server/horizon-deployment/*) add_component horizon ;;
-    z_my_server/minecraft-server/*) add_component minecraft ;;
-    deploy/server/*) add_component all ;;
+components=(webpage xiaoyu status news youtube bilibili horizon minecraft deployment)
+
+component_paths() {
+  case "$1" in
+    webpage) printf '%s\n' 'z_my_server/webpage/' ;;
+    xiaoyu) printf '%s\n' 'z_my_server/xiaoyu/VRChat-Category/' ;;
+    status) printf '%s\n' 'z_my_server/status-dashboard/' ;;
+    news) printf '%s\n' 'z_my_server/news-pipeline/' ;;
+    youtube) printf '%s\n' 'z_my_server/youtube-relay/' ;;
+    bilibili) printf '%s\n' 'z_my_server/bilibili-relay/' ;;
+    horizon) printf '%s\n' 'z_my_server/horizon-deployment/' ;;
+    minecraft) printf '%s\n' 'z_my_server/minecraft-server/' ;;
+    deployment)
+      printf '%s\n' 'deploy/server/deploy-my-server' 'deploy/server/VERSION'
+      ;;
   esac
-done <<< "$changed"
+}
+
+state_for() {
+  awk -v component="$1" '$1 == component { print $2; exit }' "$state_file"
+}
+
+selected=()
+for component in "${components[@]}"; do
+  base=$(state_for "$component")
+  if [[ -z "$base" ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+    selected+=("$component")
+    continue
+  fi
+  [[ "$base" == "$target" ]] && continue
+
+  mapfile -t paths < <(component_paths "$component")
+  if git diff --quiet "$base" "$target" -- "${paths[@]}"; then
+    continue
+  fi
+  selected+=("$component")
+done
 
 IFS=,
-printf '%s\n' "${components[*]-}"
-
+printf '%s\n' "${selected[*]-}"
