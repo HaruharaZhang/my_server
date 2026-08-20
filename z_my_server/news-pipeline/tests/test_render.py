@@ -38,7 +38,7 @@ class FrontendLoadingTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertEqual(render.PAGE_VERSION, "v3.4.4")
+        self.assertEqual(render.PAGE_VERSION, "v3.4.5")
         self.assertIn('id="loading-status"', template)
         self.assertIn('aria-live="polite"', template)
         self.assertIn('aria-busy="true"', template)

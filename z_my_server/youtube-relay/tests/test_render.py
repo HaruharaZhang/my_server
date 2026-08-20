@@ -32,6 +32,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("转发用户：3 · 观看次数：待统计", html)
         self.assertIn("转发用户：4 · 观看次数：2 次", html)
         self.assertIn(".card:focus-visible", html)
+        self.assertIn("东云资讯 v1.2.1", html)
 
     def test_pulled_but_never_played_entry_sorts_last_without_crash(self):
         with tempfile.TemporaryDirectory() as tmpdir:
