@@ -14,7 +14,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 BEIJING = timezone(timedelta(hours=8))
 
-PAGE_VERSION = "v3.4.4"
+PAGE_VERSION = "v3.4.5"
 DISPLAY_DAYS = 30
 
 DIGEST_LINK_RE = re.compile(r"\[([^\[\]]+)\]\(#(\d+)\)")

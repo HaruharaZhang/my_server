@@ -5,6 +5,7 @@ SOURCE_COMMIT=9dfee928a6709b6586dbad7c65afc943a197b7dd
 BASE=/opt/dyyjs-horizon
 STAGING=/opt/dyyjs-horizon-deploy
 PROXY=http://127.0.0.1:7890
+# deployment-probe: horizon-v1
 
 if [[ $(id -u) -ne 0 ]]; then
     echo "install-server.sh must run as root" >&2

@@ -7,7 +7,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 BEIJING = timezone(timedelta(hours=8))
-VERSION = "v1.2.0"
+VERSION = "v1.2.1"
 
 
 def format_duration(value):

@@ -34,6 +34,7 @@ class RenderTests(unittest.TestCase):
         self.assertIn("转发用户：1", html)
         self.assertIn("观看次数：2 次", html)
         self.assertIn("13分4秒", html)
+        self.assertIn("东云资讯 v1.1.1", html)
 
     def test_pull_only_entry_with_null_played_at_sorts_safely(self):
         catalog = {

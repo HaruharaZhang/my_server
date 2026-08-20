@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Deployment contract version 4.
 set -Eeuo pipefail
 
 base=/opt/my-server
