@@ -20,7 +20,7 @@ async def main():
         try:
             plan = await asyncio.to_thread(
                 ytdlp_client.resolve, canonical_watch_url(video_id), cfg["network"]["proxy"],
-                cfg["youtube"]["format_compat"],
+                cfg["youtube"]["format_compat"], cfg["youtube"],
             )
             await catalog.enrich_metadata(
                 cfg, video_id, plan.get("title", ""), plan.get("thumbnail", ""),

@@ -4,6 +4,10 @@
 从机制上排除 shell 元字符注入的可能。
 """
 
+import importlib.metadata
+import os
+from pathlib import Path
+
 import yt_dlp
 
 
@@ -11,15 +15,31 @@ class ResolveError(Exception):
     pass
 
 
-def resolve(video_url, proxy, format_selector):
+def validate_environment(youtube_config):
+    runtime_path = Path(youtube_config["node_runtime_path"])
+    if not runtime_path.is_file() or not os.access(runtime_path, os.X_OK):
+        raise RuntimeError("YouTube Node runtime is unavailable")
+    try:
+        importlib.metadata.version("yt-dlp-ejs")
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise RuntimeError("yt-dlp-ejs is unavailable") from exc
+
+
+def resolve(video_url, proxy, format_selector, youtube_config):
     ydl_opts = {
         "proxy": proxy,
         "format": format_selector,
+        "extractor_args": {
+            "youtube": {"player_client": [youtube_config["player_client"]]},
+        },
+        "js_runtimes": {
+            "node": {"path": youtube_config["node_runtime_path"]},
+        },
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
-        "socket_timeout": 20,
+        "socket_timeout": youtube_config["socket_timeout_seconds"],
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

@@ -25,6 +25,7 @@ from security import TokenGuard
 from validate import canonical_watch_url, extract_video_id, parse_query
 
 CFG = load_config()
+ytdlp_client.validate_environment(CFG["youtube"])
 
 for key in ("cache_dir", "state_dir", "log_dir"):
     Path(CFG["paths"][key]).mkdir(parents=True, exist_ok=True)
@@ -318,7 +319,7 @@ async def youtube_relay(request: Request):
             runtime_status.write(CFG, "resolving", quality_mode)
             plan = await asyncio.to_thread(
                 ytdlp_client.resolve, canonical_watch_url(video_id),
-                CFG["network"]["proxy"], _format_selector(quality_mode),
+                CFG["network"]["proxy"], _format_selector(quality_mode), CFG["youtube"],
             )
         except ytdlp_client.ResolveError as exc:
             runtime_status.write(CFG, "error", quality_mode, error_category="resolve_error")

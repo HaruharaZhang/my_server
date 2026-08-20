@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deployment contract version 4.
+# Deployment contract version 5.
 set -Eeuo pipefail
 
 base=/opt/my-server
@@ -317,10 +317,18 @@ deploy_component() {
     youtube)
       sync_app "$release/z_my_server/youtube-relay" /opt/dyyjs-youtube/app
       install_units "$release/z_my_server/youtube-relay/systemd"
+      systemctl disable --now dyyjs-youtube-update.timer >/dev/null 2>&1 || true
+      rm -f /etc/systemd/system/dyyjs-youtube-update.service \
+        /etc/systemd/system/dyyjs-youtube-update.timer
+      systemctl daemon-reload
+      /opt/dyyjs-youtube/venv/bin/pip install --disable-pip-version-check \
+        --index-url https://mirrors.aliyun.com/pypi/simple/ \
+        --requirement /opt/dyyjs-youtube/app/requirements.txt
       /opt/dyyjs-youtube/venv/bin/python -m compileall -q /opt/dyyjs-youtube/app
       systemctl restart dyyjs-youtube-pot.service dyyjs-youtube.service
       systemctl is-active --quiet dyyjs-youtube.service
       require_listener 8090
+      /opt/dyyjs-youtube/venv/bin/python /opt/dyyjs-youtube/app/smoke_test.py
       curl_status /youtube 403
       curl_status /youtube/history/ 200
       ;;
