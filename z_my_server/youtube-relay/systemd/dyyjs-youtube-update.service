@@ -1,6 +1,0 @@
-[Unit]
-Description=Update yt-dlp to latest (YouTube anti-scraping changes frequently)
-
-[Service]
-Type=oneshot
-ExecStart=/opt/dyyjs-youtube/venv/bin/pip install -U -i https://mirrors.aliyun.com/pypi/simple/ yt-dlp bgutil-ytdlp-pot-provider

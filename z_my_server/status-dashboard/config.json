@@ -17,7 +17,6 @@
   "timers": [
     {"unit": "dyyjs-news.timer", "name": "新闻生成"},
     {"unit": "dyyjs-horizon.timer", "name": "Horizon 日报"},
-    {"unit": "dyyjs-youtube-update.timer", "name": "视频组件更新"},
     {"unit": "dyyjs-youtube-cleanup.timer", "name": "视频缓存清理"},
     {"unit": "mihomo-subscription-update.timer", "name": "代理订阅更新"},
     {"unit": "apt-daily-upgrade.timer", "name": "系统安全更新"}

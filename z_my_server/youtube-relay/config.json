@@ -27,6 +27,9 @@
     "idle_cancel_seconds": 10
   },
   "youtube": {
+    "player_client": "mweb",
+    "node_runtime_path": "/opt/dyyjs-youtube/node24-runtime/bin/node",
+    "socket_timeout_seconds": 60,
     "format_compat": "b[height<=720][ext=mp4][vcodec~='^avc1'][acodec~='^mp4a']/b[height<=720][ext=mp4]/bv*[height<=720][vcodec~='^avc1']+ba[acodec~='^mp4a']",
     "format_high": "bv*[height<=720][vcodec~='^avc1']+ba[acodec~='^mp4a']/b[height<=720][ext=mp4][vcodec~='^avc1'][acodec~='^mp4a']/b[height<=720][ext=mp4]",
     "allowed_hosts": ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"],

@@ -8,6 +8,9 @@ grep -q -- '--retry-all-errors' "$script"
 ! grep -q 'api.github.com/zen' "$script"
 grep -q 'require_listener 8090' "$script"
 grep -q 'require_listener 8091' "$script"
+grep -q '/opt/dyyjs-youtube/app/requirements.txt' "$script"
+grep -q '/opt/dyyjs-youtube/app/smoke_test.py' "$script"
+grep -q 'disable --now dyyjs-youtube-update.timer' "$script"
 ! grep -qE 'ss -ltn \| grep -qE' "$script"
 grep -A40 '^restore_transaction()' "$script" | grep -q 'exit 1'
 
