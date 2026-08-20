@@ -1,0 +1,9 @@
+[Unit]
+Description=Run dyyjs news pipeline daily at 06:30 Beijing time
+
+[Timer]
+OnCalendar=*-*-* 06:30 Asia/Shanghai
+Persistent=true
+
+[Install]
+WantedBy=timers.target

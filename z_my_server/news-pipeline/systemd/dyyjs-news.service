@@ -1,0 +1,11 @@
+[Unit]
+Description=dyyjs.com daily news pipeline
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/dyyjs-news
+EnvironmentFile=/etc/dyyjs-news/env
+ExecStart=/opt/dyyjs-news/venv/bin/python /opt/dyyjs-news/app/run_pipeline.py
+TimeoutStartSec=2700

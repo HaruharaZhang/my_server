@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>东云研究所 Minecraft 服务器</title>
+<style>
+  :root {
+    --bg: #faf9f5;
+    --fg: #1f1e1d;
+    --muted: #6e6d68;
+    --card: #ffffff;
+    --border: #e8e6e0;
+    --accent: #D97757;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1918;
+      --fg: #ececea;
+      --muted: #a5a39e;
+      --card: #242322;
+      --border: #3a3936;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.7;
+    padding: 3rem 1.25rem;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.5rem; }
+  .sub { color: var(--muted); margin-bottom: 2rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .card h2 { font-size: 1.05rem; margin-bottom: 0.6rem; }
+  .addr {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.35rem;
+    color: var(--accent);
+    user-select: all;
+  }
+  ul { padding-left: 1.2rem; }
+  li { margin-bottom: 0.35rem; }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  footer { margin-top: 2.5rem; text-align: center; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>东云研究所 Minecraft 服务器</h1>
+  <p class="sub">Java 版正版联机 · 生存模式</p>
+
+  <div class="card">
+    <h2>服务器地址（在游戏内「多人游戏 → 添加服务器」中填写）</h2>
+    <p class="addr">dyyjs.com:23333</p>
+  </div>
+
+  <div class="card">
+    <h2>加入条件</h2>
+    <ul>
+      <li>Minecraft <strong>Java 版 26.2</strong>（版本需一致才能进入）</li>
+      <li>正版账号（服务器开启正版验证）</li>
+      <li>已加入白名单——把你的<strong>正版游戏 ID</strong> 发给服主申请</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>说明</h2>
+    <ul>
+      <li>生存模式，普通难度，最多 8 人同时在线</li>
+      <li>世界每日自动备份</li>
+      <li class="muted">服务器带宽有限：进服/传送时区块加载稍慢属正常现象</li>
+    </ul>
+  </div>
+
+  <footer class="muted"><a href="/">← 返回东云研究所首页</a></footer>
+</main>
+</body>
+</html>

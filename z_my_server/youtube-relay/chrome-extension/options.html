@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>dyyjs 中转链接 - 设置</title>
+  <style>
+    body {
+      font: 14px/1.6 sans-serif;
+      padding: 16px;
+      min-width: 320px;
+    }
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 8px 20px;
+      cursor: pointer;
+    }
+    #status {
+      margin-left: 10px;
+      color: #1a7f37;
+    }
+  </style>
+</head>
+<body>
+  <label for="token">YouTube 中转 token</label>
+  <input type="password" id="token" placeholder="粘贴 token 后点保存" autocomplete="off" />
+  <label for="bilibiliToken">Bilibili 中转 token</label>
+  <input type="password" id="bilibiliToken" placeholder="粘贴 token 后点保存" autocomplete="off" />
+  <button id="save">保存</button><span id="status"></span>
+  <script src="options.js"></script>
+</body>
+</html>

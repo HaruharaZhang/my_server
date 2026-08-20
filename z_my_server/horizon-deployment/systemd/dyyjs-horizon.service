@@ -1,0 +1,33 @@
+[Unit]
+Description=Generate and atomically publish the Horizon technology digest
+Wants=network-online.target mihomo.service
+After=network-online.target mihomo.service
+
+[Service]
+Type=oneshot
+User=horizon
+Group=horizon
+EnvironmentFile=/etc/dyyjs-news/env
+Environment=HORIZON_FETCH_PROXY=http://127.0.0.1:7890
+Environment=HTTP_PROXY=http://127.0.0.1:7890
+Environment=HTTPS_PROXY=http://127.0.0.1:7890
+Environment=NO_PROXY=127.0.0.1,localhost,dashscope.aliyuncs.com
+Environment=HORIZON_DOCS_DIR=/opt/dyyjs-horizon/jekyll
+WorkingDirectory=/opt/dyyjs-horizon/app
+ExecStart=/usr/local/sbin/run-dyyjs-horizon
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=1200M
+ReadWritePaths=/opt/dyyjs-horizon/data /opt/dyyjs-horizon/jekyll /opt/dyyjs-horizon/releases /opt/dyyjs-horizon/logs /opt/dyyjs-horizon/state /var/www/dyyjs
+
+[Install]
+WantedBy=multi-user.target

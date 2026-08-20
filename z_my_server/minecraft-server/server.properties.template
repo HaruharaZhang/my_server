@@ -1,0 +1,17 @@
+#Minecraft server properties
+# 由部署脚本追加 rcon.password= 一行（随机生成，不入库）
+server-port=23333
+online-mode=true
+white-list=true
+enforce-whitelist=true
+max-players=5
+view-distance=8
+simulation-distance=6
+# motd 用 unicode 转义，兼容 properties 的 ISO-8859-1 与 UTF-8 两种读取方式（东云研究所 Minecraft 服务器）
+motd=\u4E1C\u4E91\u7814\u7A76\u6240 Minecraft \u670D\u52A1\u5668
+level-name=world
+difficulty=normal
+gamemode=survival
+spawn-protection=0
+enable-rcon=true
+rcon.port=25575

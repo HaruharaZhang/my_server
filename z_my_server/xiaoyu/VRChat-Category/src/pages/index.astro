@@ -1,0 +1,123 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { portfolioCategories } from '../data/portfolio';
+import portfolioImages from '../data/portfolio-images.json';
+import { sitePath } from '../utils/site-path';
+
+const homeImageIds = [
+	'me-021',
+	'me-035',
+	'me-012',
+	'me-022',
+	'me-020',
+	'me-039',
+	'me-027',
+	'me-003',
+	'me-008',
+	'me-001',
+	'me-002',
+	'me-004',
+	'me-009',
+	'me-014',
+	'me-015',
+	'me-016',
+	'me-017',
+	'me-018',
+	'me-024',
+	'me-025',
+] as const;
+
+const homeWorks = homeImageIds.map((id, index) => {
+	const image = portfolioImages.find((item) => item.id === id);
+	if (!image) throw new Error(`Missing home image: ${id}`);
+	const category = portfolioCategories.find((item) => item.id === image.category);
+	if (!category) throw new Error(`Unknown home category: ${image.category}`);
+
+	return {
+		index: String(index + 1).padStart(2, '0'),
+		label: category.title,
+		href: `${sitePath('portfolio/')}#${category.id}`,
+		src: sitePath(image.src),
+		width: image.width,
+		height: image.height,
+	};
+});
+---
+
+<BaseLayout title="Home" bodyClass="home-page">
+	<div class="home-experience">
+		<div class="home-track" data-home-track aria-label="Featured photography">
+			{homeWorks.map((work, index) => (
+				<a class="home-work" href={work.href} aria-label={`View ${work.label} series`}>
+					<img
+						src={work.src}
+						alt={`${work.label} ${work.index}`}
+						width={work.width}
+						height={work.height}
+						loading={index < 5 ? 'eager' : 'lazy'}
+						decoding="async"
+					/>
+				</a>
+			))}
+		</div>
+
+		<div class="home-index" aria-live="polite">
+			<span data-current-work>1</span><i></i><span>{homeWorks.length}</span>
+		</div>
+
+		<div class="home-toolbar">
+			<p class="home-scroll-cue"><i></i>SCROLL DOWN OR SWIPE</p>
+			<div class="home-arrows">
+				<button type="button" data-scroll-previous aria-label="Scroll gallery left">←</button>
+				<button type="button" data-scroll-next aria-label="Scroll gallery right">→</button>
+			</div>
+			<div class="home-progress" aria-hidden="true"><i data-scroll-progress></i></div>
+		</div>
+	</div>
+</BaseLayout>
+
+<script>
+	const track = document.querySelector<HTMLElement>('[data-home-track]');
+	const currentWork = document.querySelector<HTMLElement>('[data-current-work]');
+	const progress = document.querySelector<HTMLElement>('[data-scroll-progress]');
+	const previous = document.querySelector<HTMLButtonElement>('[data-scroll-previous]');
+	const next = document.querySelector<HTMLButtonElement>('[data-scroll-next]');
+	const desktop = window.matchMedia('(min-width: 801px)');
+	let frame = 0;
+
+	const updatePosition = () => {
+		if (!track) return;
+		const maximum = Math.max(track.scrollWidth - track.clientWidth, 1);
+		const ratio = Math.min(Math.max(track.scrollLeft / maximum, 0), 1);
+		progress?.style.setProperty('transform', `scaleX(${ratio})`);
+
+		const works = Array.from(track.querySelectorAll<HTMLElement>('.home-work'));
+		const center = track.scrollLeft + track.clientWidth / 2;
+		const closest = works.reduce((best, work, index) =>
+			Math.abs(work.offsetLeft + work.offsetWidth / 2 - center) < Math.abs(works[best].offsetLeft + works[best].offsetWidth / 2 - center) ? index : best, 0);
+		if (currentWork) currentWork.textContent = String(closest + 1);
+		if (previous) previous.disabled = track.scrollLeft <= 1;
+		if (next) next.disabled = track.scrollLeft >= maximum - 1;
+	};
+
+	track?.addEventListener('wheel', (event) => {
+		if (!desktop.matches || event.ctrlKey) return;
+		const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+		if (Math.abs(delta) < 1) return;
+		const maximum = Math.max(track.scrollWidth - track.clientWidth, 0);
+		if ((delta < 0 && track.scrollLeft <= 1) || (delta > 0 && track.scrollLeft >= maximum - 1)) return;
+		event.preventDefault();
+		const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 18 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerWidth : 1;
+		track.scrollLeft += delta * unit;
+	}, { passive: false });
+
+	track?.addEventListener('scroll', () => {
+		window.cancelAnimationFrame(frame);
+		frame = window.requestAnimationFrame(updatePosition);
+	}, { passive: true });
+
+	previous?.addEventListener('click', () => track?.scrollBy({ left: -window.innerWidth * .8, behavior: 'smooth' }));
+	next?.addEventListener('click', () => track?.scrollBy({ left: window.innerWidth * .8, behavior: 'smooth' }));
+	window.addEventListener('resize', updatePosition);
+	updatePosition();
+</script>

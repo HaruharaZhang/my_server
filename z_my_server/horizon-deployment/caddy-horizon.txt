@@ -1,0 +1,5 @@
+redir /horizon /horizon/ 308
+handle_path /horizon/* {
+    root * /var/www/dyyjs/horizon/current
+    file_server
+}

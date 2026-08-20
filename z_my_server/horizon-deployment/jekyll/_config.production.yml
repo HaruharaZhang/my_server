@@ -1,0 +1,7 @@
+title: 东云研究所 Horizon 技术日报
+description: AI 筛选的中文技术日报
+url: https://dyyjs.com
+baseurl: /horizon
+future: true
+feed:
+  path: feed.xml

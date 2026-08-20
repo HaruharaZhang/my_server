@@ -1,0 +1,113 @@
+---
+import '../styles/global.css';
+import { sitePath } from '../utils/site-path';
+
+interface Props {
+	title: string;
+	description?: string;
+	bodyClass?: string;
+}
+
+const {
+	title,
+	description = 'A quiet archive of VRChat photography — me, together, worlds, and friends.',
+	bodyClass,
+} = Astro.props;
+
+const pathname = Astro.url.pathname;
+const links = [
+	{ href: sitePath(), label: 'HOME' },
+	{ href: sitePath('about/'), label: 'ABOUT' },
+	{ href: sitePath('portfolio/'), label: 'PORTFOLIO' },
+	{ href: sitePath('movie/'), label: 'MOVIE' },
+];
+
+const socialLinks = [
+	{ href: 'https://x.com/Xiaoyu12ya', label: 'X', icon: 'x' },
+	{ href: 'https://v.douyin.com/OM7737esN_U/', label: 'Douyin', icon: 'douyin' },
+	{ href: 'https://space.bilibili.com/8817633', label: 'Bilibili', icon: 'bilibili' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width" />
+		<meta name="description" content={description} />
+		<meta name="generator" content={Astro.generator} />
+		<link rel="icon" href={sitePath('favicon.svg')} />
+		<title>{title} — VR PHOTOGRAPHY</title>
+	</head>
+	<body class={bodyClass} style={`--site-background-image:url("${sitePath('images/background/BG.png')}")`}>
+		<header class="site-header">
+			<a class="wordmark" href={sitePath()} aria-label="VR Photography home">
+				<span>VIRTUAL</span>
+				<strong>AFTERIMAGE</strong>
+			</a>
+
+			<div class="header-actions">
+				<nav class="desktop-nav" aria-label="Primary navigation">
+					{links.map((link) => (
+						<a
+							href={link.href}
+							class:list={{ active: pathname === link.href }}
+							aria-current={pathname === link.href ? 'page' : undefined}
+						>
+							{link.label}
+						</a>
+					))}
+				</nav>
+
+				<nav class="social-nav" aria-label="Social media">
+					{socialLinks.map((social) => (
+						<a href={social.href} target="_blank" rel="noreferrer" aria-label={`${social.label} (opens in a new tab)`}>
+							<span class:list={['social-icon', `social-icon-${social.icon}`]} aria-hidden="true">
+								{social.icon === 'x' ? 'X' : social.icon === 'douyin' ? '♪' : 'bili'}
+							</span>
+						</a>
+					))}
+				</nav>
+			</div>
+
+			<details class="mobile-nav">
+				<summary aria-label="Open navigation"><span>MENU</span><i></i></summary>
+				<nav aria-label="Mobile navigation">
+					{links.map((link, index) => (
+						<a href={link.href} aria-current={pathname === link.href ? 'page' : undefined}>
+							<small>0{index + 1}</small>{link.label}
+						</a>
+					))}
+				</nav>
+				<nav class="mobile-social-nav" aria-label="Social media">
+					{socialLinks.map((social) => (
+						<a href={social.href} target="_blank" rel="noreferrer">
+							<span class:list={['social-icon', `social-icon-${social.icon}`]} aria-hidden="true">
+								{social.icon === 'x' ? 'X' : social.icon === 'douyin' ? '♪' : 'bili'}
+							</span>
+							<span>{social.label}</span>
+						</a>
+					))}
+				</nav>
+			</details>
+		</header>
+
+		<main>
+			<slot />
+		</main>
+
+		<footer class="site-footer">
+			<p>VR PHOTOGRAPHY ARCHIVE</p>
+			<p>BETWEEN MEMORY &amp; LIGHT</p>
+			<p>© {new Date().getFullYear()} XIAOYU12</p>
+			<div class="site-footer-meta">
+				<p class="site-footer-records">
+					<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备19006338号-1</a>
+					<span aria-hidden="true">·</span>
+					<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备19006338号-3</a>
+				</p>
+				<p>开源致谢 · <a href="https://astro.build/" target="_blank" rel="noopener noreferrer">ASTRO</a></p>
+			</div>
+		</footer>
+	</body>
+</html>

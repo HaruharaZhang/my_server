@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bilibili 播放历史 · 东云研究所</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#F0EEE6;
+  color:#1F1E1D;
+  font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  line-height:1.6;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:2rem 1.2rem}
+header{margin-bottom:1.6rem}
+h1{font-size:1.7rem;font-weight:700;letter-spacing:.15em}
+header p{font-size:.8rem;color:#87857C;margin-top:.35rem;letter-spacing:.03em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
+.card{
+  display:flex;
+  flex-direction:column;
+  gap:.6rem;
+  background:#FAF9F5;
+  border:1px solid #E0DCCF;
+  border-radius:12px;
+  padding:.9rem;
+  color:inherit;
+  text-decoration:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.card:hover{border-color:#D97757;box-shadow:0 2px 10px rgba(120,100,70,.12)}
+.card:focus-visible{outline:3px solid #D97757;outline-offset:3px}
+.card img{
+  width:100%;
+  height:145px;
+  object-fit:cover;
+  border-radius:8px;
+  background:#E9E6DC;
+}
+.card h3{font-size:1rem;font-weight:700;line-height:1.4;word-break:break-word}
+.meta{font-size:.75rem;color:#A3A196;letter-spacing:.03em}
+.empty{font-size:.85rem;color:#A3A196;padding:1.5rem 0;text-align:center}
+footer{
+  border-top:1px solid #E0DCCF;
+  margin-top:2.5rem;
+  padding:1.4rem 0 .6rem;
+  font-size:.75rem;
+  color:#87857C;
+  text-align:center;
+}
+footer p{margin-bottom:.35rem}
+footer a{color:#C15F3C;text-decoration:none}
+footer a:hover{text-decoration:underline}
+.oss a{margin:0 .25rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Bilibili 播放历史</h1>
+  <p>更新于 {{ updated_at }}（北京时间）</p>
+  <p>通过 dyyjs.com/bilibili 播放代理成功播放过的视频，按最近播放时间排序</p>
+  <p>转发用户按客户端和视频进行 10 分钟会话去重；观看次数为服务器解析并拉流的会话数。</p>
+</header>
+<main>
+  {% if entries %}
+  <div class="grid">
+    {% for entry in entries %}
+    <a class="card" href="https://www.bilibili.com/video/{{ entry.bvid }}" target="_blank" rel="noopener noreferrer">
+      {% if entry.image %}<img src="{{ entry.image }}" loading="lazy" alt="">{% endif %}
+      <h3>{{ entry.title or "标题待确认" }}</h3>
+      <span class="meta">时长：{{ format_duration(entry.duration_seconds) }}</span>
+      <span class="meta">首次播放：{{ entry.first_played_at or "待确认" }}</span>
+      <span class="meta">最近播放：{{ entry.last_played_at or "待确认" }}</span>
+      <span class="meta">转发用户：{{ entry.play_count or 0 }} · 观看次数：{% if entry.pull_count is defined %}{{ entry.pull_count }} 次{% else %}待统计{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">暂无播放记录</p>
+  {% endif %}
+</main>
+<footer>
+  <p>© 2026 东云研究所 · 保留所有权利</p>
+  <p>东云资讯 {{ version }} · 内容由程序自动采集与 AI 生成，仅供参考，请以原文为准</p>
+  <p class="beian">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">桂ICP备19006338号-1</a> ·
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">桂ICP备19006338号-3</a>
+  </p>
+  <p class="oss">开源致谢：
+    <a href="https://github.com/caddyserver/caddy" target="_blank" rel="noopener">Caddy</a> ·
+    <a href="https://github.com/pallets/jinja" target="_blank" rel="noopener">Jinja2</a> ·
+    <a href="https://github.com/kurtmckee/feedparser" target="_blank" rel="noopener">feedparser</a> ·
+    <a href="https://github.com/python-pillow/Pillow" target="_blank" rel="noopener">Pillow</a> ·
+    <a href="https://github.com/openai/openai-python" target="_blank" rel="noopener">openai-python</a>
+  </p>
+  <p><a href="/">← 返回东云研究所</a></p>
+</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_script=${1:?path to deploy-my-server is required}
+public_key=${DEPLOY_PUBLIC_KEY:?DEPLOY_PUBLIC_KEY is required}
+
+[[ $(id -u) -eq 0 ]] || { echo "must run as root" >&2; exit 1; }
+[[ "$public_key" == ssh-ed25519\ * ]] || { echo "an Ed25519 public key is required" >&2; exit 2; }
+test -f "$source_script"
+
+id deployer >/dev/null 2>&1 || useradd --create-home --shell /bin/bash deployer
+install -d -o deployer -g deployer -m 0700 /home/deployer/.ssh
+{
+  printf 'no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty '
+  printf '%s\n' "$public_key"
+} > /home/deployer/.ssh/authorized_keys
+chown deployer:deployer /home/deployer/.ssh/authorized_keys
+chmod 0600 /home/deployer/.ssh/authorized_keys
+
+install -d -o deployer -g deployer -m 0750 /opt/my-server
+install -d -o deployer -g deployer -m 0700 /opt/my-server/incoming
+install -d -o root -g root -m 0755 /opt/my-server/releases
+install -o root -g root -m 0755 "$source_script" /usr/local/sbin/deploy-my-server
+
+printf '%s\n' 'deployer ALL=(root) NOPASSWD: /usr/local/sbin/deploy-my-server *' \
+  > /etc/sudoers.d/my-server-deployer
+chmod 0440 /etc/sudoers.d/my-server-deployer
+visudo -cf /etc/sudoers.d/my-server-deployer
+
+echo "deployer installed"
+

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Horizon every day at 08:30 Asia/Shanghai
+
+[Timer]
+OnCalendar=*-*-* 08:30:00 Asia/Shanghai
+Persistent=true
+Unit=dyyjs-horizon.service
+
+[Install]
+WantedBy=timers.target

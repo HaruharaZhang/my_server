@@ -1,0 +1,272 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArtworkPlaceholder from '../components/ArtworkPlaceholder.astro';
+import { portfolioCategories } from '../data/portfolio';
+import portfolioImages from '../data/portfolio-images.json';
+import { sitePath } from '../utils/site-path';
+
+const placeholderRatios = [
+	{ name: 'portrait', value: 3 / 4 },
+	{ name: 'landscape', value: 4 / 3 },
+	{ name: 'video', value: 16 / 9 },
+	{ name: 'cinema', value: 21 / 9 },
+] as const;
+
+const imageWorks = portfolioImages.map((image, index) => {
+	const category = portfolioCategories.find((item) => item.id === image.category);
+	if (!category) throw new Error(`Unknown portfolio category: ${image.category}`);
+
+	return {
+		kind: 'image' as const,
+		index: image.id.split('-').at(-1) ?? String(index + 1).padStart(2, '0'),
+		category,
+		ratio: { value: image.width / image.height },
+		src: sitePath(image.src),
+		width: image.width,
+		height: image.height,
+		title: image.title,
+		date: image.date,
+		priority: index < 9,
+	};
+});
+
+const populatedCategories = new Set(imageWorks.map((work) => work.category.id));
+const emptyCategories = portfolioCategories.filter((category) => !populatedCategories.has(category.id));
+const placeholderWorks = emptyCategories.flatMap((category) =>
+	Array.from({ length: 6 }, (_, index) => ({
+		kind: 'placeholder' as const,
+		index: String(index + 1).padStart(2, '0'),
+		category,
+		ratio: placeholderRatios[index % placeholderRatios.length],
+	})),
+);
+
+const works = [...imageWorks, ...placeholderWorks];
+const portfolioRows = [0, 1, 2].map((row) => works.filter((_, index) => index % 3 === row));
+---
+
+<BaseLayout title="Portfolio" bodyClass="portfolio-page">
+	<div class="portfolio-experience">
+		<p class="mobile-scroll-guide"><span>SWIPE UP TO DISCOVER</span><i aria-hidden="true">↓</i></p>
+
+		<div class="portfolio-viewport" data-portfolio-viewport>
+			<div class="portfolio-wall" data-portfolio-wall>
+				{portfolioRows.map((row) => (
+					<div class="portfolio-row">
+						{row.map((work) => (
+							<figure
+								class="portfolio-tile"
+								data-category={work.category.id}
+								style={`--tile-ratio: ${work.ratio.value}`}
+							>
+								{work.kind === 'image' ? (
+									<>
+										<img
+											src={work.src}
+											alt={`${work.category.title} ${work.index}`}
+											width={work.width}
+											height={work.height}
+											loading={work.priority ? 'eager' : 'lazy'}
+											decoding="async"
+										/>
+										<div class="portfolio-tile-info" aria-hidden="true">
+											<strong>{work.title}</strong>
+											<time datetime={work.date.replaceAll('/', '-')}>{work.date}</time>
+										</div>
+										<button
+											class="portfolio-zoom-button"
+											type="button"
+											data-lightbox-open
+											data-lightbox-src={work.src}
+											data-lightbox-title={work.title}
+											data-lightbox-date={work.date}
+											data-lightbox-width={work.width}
+											data-lightbox-height={work.height}
+											aria-label={`放大查看 ${work.title}`}
+										>
+											<span class="portfolio-magnifier" aria-hidden="true"></span>
+										</button>
+									</>
+								) : (
+									<ArtworkPlaceholder index={work.index} label={work.category.title} tone={work.category.tone} ratio={work.ratio.name} />
+								)}
+							</figure>
+						))}
+					</div>
+				))}
+			</div>
+		</div>
+
+		<button class="edge-start-button portfolio-start-button" type="button" data-portfolio-start aria-label="返回作品集起点" disabled>
+			<span aria-hidden="true">«</span>
+			<small>START</small>
+		</button>
+
+		<div class="portfolio-toolbar">
+			<div class="portfolio-filters" data-portfolio-filters>
+				<span class="portfolio-filter-label">FILTERS <i>→</i></span>
+				<button type="button" data-filter="all" aria-pressed="true">ALL</button>
+				{portfolioCategories.map((category) => (
+					<button type="button" data-filter={category.id} aria-pressed="false">{category.title}</button>
+				))}
+			</div>
+
+			<div class="portfolio-progress" aria-hidden="true"><i data-portfolio-progress></i></div>
+
+			<p class="portfolio-scroll-cue"><i></i>SCROLL DOWN OR SWIPE TO DISCOVER</p>
+		</div>
+	</div>
+
+	<dialog class="portfolio-lightbox" data-portfolio-lightbox aria-label="照片全屏查看器">
+		<div class="portfolio-lightbox-stage" data-lightbox-stage>
+			<img data-lightbox-image alt="" />
+		</div>
+
+		<button class="portfolio-lightbox-control portfolio-lightbox-close" type="button" data-lightbox-close aria-label="关闭全屏查看">×</button>
+		<button class="portfolio-lightbox-control portfolio-lightbox-zoom" type="button" data-lightbox-zoom aria-label="放大照片" aria-pressed="false">
+			<span class="portfolio-magnifier" aria-hidden="true"></span>
+		</button>
+		<button class="portfolio-lightbox-control portfolio-lightbox-previous" type="button" data-lightbox-previous aria-label="上一张照片">←</button>
+		<button class="portfolio-lightbox-control portfolio-lightbox-next" type="button" data-lightbox-next aria-label="下一张照片">→</button>
+
+		<div class="portfolio-lightbox-meta">
+			<strong data-lightbox-title></strong>
+			<time data-lightbox-date></time>
+			<span data-lightbox-count></span>
+		</div>
+	</dialog>
+</BaseLayout>
+
+<script>
+	const viewport = document.querySelector<HTMLElement>('[data-portfolio-viewport]');
+	const wall = document.querySelector<HTMLElement>('[data-portfolio-wall]');
+	const progress = document.querySelector<HTMLElement>('[data-portfolio-progress]');
+	const startButton = document.querySelector<HTMLButtonElement>('[data-portfolio-start]');
+	const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-filter]'));
+	const tiles = Array.from(document.querySelectorAll<HTMLElement>('.portfolio-tile'));
+	const desktop = window.matchMedia('(min-width: 801px)');
+	const categoryFilters = ['me', 'together', 'worlds', 'friends'];
+	const lightbox = document.querySelector<HTMLDialogElement>('[data-portfolio-lightbox]');
+	const lightboxStage = document.querySelector<HTMLElement>('[data-lightbox-stage]');
+	const lightboxImage = document.querySelector<HTMLImageElement>('[data-lightbox-image]');
+	const lightboxTitle = document.querySelector<HTMLElement>('[data-lightbox-title]');
+	const lightboxDate = document.querySelector<HTMLTimeElement>('[data-lightbox-date]');
+	const lightboxCount = document.querySelector<HTMLElement>('[data-lightbox-count]');
+	const lightboxClose = document.querySelector<HTMLButtonElement>('[data-lightbox-close]');
+	const lightboxZoom = document.querySelector<HTMLButtonElement>('[data-lightbox-zoom]');
+	const lightboxPrevious = document.querySelector<HTMLButtonElement>('[data-lightbox-previous]');
+	const lightboxNext = document.querySelector<HTMLButtonElement>('[data-lightbox-next]');
+	const lightboxOpenButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-lightbox-open]'));
+	let frame = 0;
+	let visibleLightboxButtons: HTMLButtonElement[] = [];
+	let activeLightboxIndex = 0;
+	let lightboxTrigger: HTMLButtonElement | null = null;
+
+	const updateProgress = () => {
+		if (!viewport || !wall) return;
+		const maximum = Math.max(wall.scrollWidth - viewport.clientWidth, 1);
+		const ratio = Math.min(Math.max(viewport.scrollLeft / maximum, 0), 1);
+		progress?.style.setProperty('transform', `scaleX(${ratio})`);
+		if (startButton) startButton.disabled = viewport.scrollLeft <= 1;
+	};
+
+	const applyFilter = (filter: string, updateHash = true) => {
+		tiles.forEach((tile) => {
+			const show = filter === 'all' || tile.dataset.category === filter;
+			tile.hidden = !show;
+		});
+		buttons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.filter === filter)));
+		viewport?.scrollTo({ left: 0, behavior: 'auto' });
+		if (updateHash) history.replaceState(null, '', filter === 'all' ? location.pathname : `#${filter}`);
+		window.requestAnimationFrame(updateProgress);
+	};
+
+	const setLightboxZoom = (zoomed: boolean) => {
+		lightboxStage?.classList.toggle('is-zoomed', zoomed);
+		lightboxZoom?.classList.toggle('is-active', zoomed);
+		lightboxZoom?.setAttribute('aria-pressed', String(zoomed));
+		lightboxZoom?.setAttribute('aria-label', zoomed ? '缩小照片' : '放大照片');
+		if (!zoomed && lightboxStage) lightboxStage.scrollTo({ left: 0, top: 0, behavior: 'auto' });
+	};
+
+	const renderLightbox = () => {
+		const button = visibleLightboxButtons[activeLightboxIndex];
+		if (!button || !lightboxImage) return;
+		const title = button.dataset.lightboxTitle ?? '';
+		const date = button.dataset.lightboxDate ?? '';
+		lightboxImage.src = button.dataset.lightboxSrc ?? '';
+		lightboxImage.alt = title;
+		lightboxImage.width = Number(button.dataset.lightboxWidth) || 0;
+		lightboxImage.height = Number(button.dataset.lightboxHeight) || 0;
+		if (lightboxTitle) lightboxTitle.textContent = title;
+		if (lightboxDate) {
+			lightboxDate.textContent = date;
+			lightboxDate.dateTime = date.replaceAll('/', '-');
+		}
+		if (lightboxCount) lightboxCount.textContent = `${activeLightboxIndex + 1} / ${visibleLightboxButtons.length}`;
+		setLightboxZoom(false);
+	};
+
+	const openLightbox = (button: HTMLButtonElement) => {
+		if (!lightbox) return;
+		visibleLightboxButtons = lightboxOpenButtons.filter((item) => !item.closest<HTMLElement>('.portfolio-tile')?.hidden);
+		activeLightboxIndex = Math.max(visibleLightboxButtons.indexOf(button), 0);
+		lightboxTrigger = button;
+		renderLightbox();
+		document.body.classList.add('portfolio-lightbox-open');
+		if (!lightbox.open) lightbox.showModal();
+		lightboxClose?.focus();
+	};
+
+	const moveLightbox = (direction: number) => {
+		if (!visibleLightboxButtons.length) return;
+		activeLightboxIndex = (activeLightboxIndex + direction + visibleLightboxButtons.length) % visibleLightboxButtons.length;
+		renderLightbox();
+	};
+
+	viewport?.addEventListener('wheel', (event) => {
+		if (!desktop.matches || event.ctrlKey) return;
+		const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+		if (Math.abs(delta) < 1) return;
+		const maximum = Math.max(viewport.scrollWidth - viewport.clientWidth, 0);
+		if ((delta < 0 && viewport.scrollLeft <= 1) || (delta > 0 && viewport.scrollLeft >= maximum - 1)) return;
+		event.preventDefault();
+		const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 18 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerWidth : 1;
+		viewport.scrollLeft += delta * unit;
+	}, { passive: false });
+
+	viewport?.addEventListener('scroll', () => {
+		window.cancelAnimationFrame(frame);
+		frame = window.requestAnimationFrame(updateProgress);
+	}, { passive: true });
+
+	buttons.forEach((button) => button.addEventListener('click', () => applyFilter(button.dataset.filter ?? 'all')));
+	lightboxOpenButtons.forEach((button) => button.addEventListener('click', () => openLightbox(button)));
+	lightboxClose?.addEventListener('click', () => lightbox?.close());
+	lightboxPrevious?.addEventListener('click', () => moveLightbox(-1));
+	lightboxNext?.addEventListener('click', () => moveLightbox(1));
+	lightboxZoom?.addEventListener('click', () => setLightboxZoom(!lightboxStage?.classList.contains('is-zoomed')));
+	lightboxImage?.addEventListener('click', () => setLightboxZoom(!lightboxStage?.classList.contains('is-zoomed')));
+	lightboxStage?.addEventListener('click', (event) => {
+		if (event.target === lightboxStage) lightbox?.close();
+	});
+	lightbox?.addEventListener('close', () => {
+		document.body.classList.remove('portfolio-lightbox-open');
+		setLightboxZoom(false);
+		lightboxTrigger?.focus();
+	});
+	window.addEventListener('keydown', (event) => {
+		if (!lightbox?.open) return;
+		if (event.key === 'ArrowLeft') moveLightbox(-1);
+		if (event.key === 'ArrowRight') moveLightbox(1);
+	});
+	startButton?.addEventListener('click', () => viewport?.scrollTo({ left: 0, behavior: 'smooth' }));
+	window.addEventListener('resize', updateProgress);
+	window.addEventListener('hashchange', () => {
+		const filter = location.hash.slice(1);
+		applyFilter(categoryFilters.includes(filter) ? filter : 'all', false);
+	});
+
+	const initialFilter = location.hash.slice(1);
+	applyFilter(categoryFilters.includes(initialFilter) ? initialFilter : 'all', false);
+</script>

@@ -1,0 +1,11 @@
+[Unit]
+Description=每五分钟刷新东云研究所状态页
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+RandomizedDelaySec=15
+Unit=dyyjs-status.service
+
+[Install]
+WantedBy=timers.target

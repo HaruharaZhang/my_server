@@ -1,0 +1,47 @@
+# Local AI/agent state and working notes
+.claude/
+.agents/
+.codex/
+.tmp/
+**/AGENTS.md
+**/CLAUDE.md
+z_my_server/plans/
+z_my_server/server-ops/
+
+# Credentials and local configuration
+z_my_server/credentials/
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*credential*
+**/*secret*
+
+# Generated packages that may contain configured screenshots or tokens
+z_my_server/chrome-extension-dist/
+
+# Minecraft world/runtime and private player access lists
+z_my_server/minecraft/
+z_my_server/minecraft-server/ops.json
+z_my_server/minecraft-server/whitelist.json
+
+# Build output, dependencies, caches, and editor files
+**/.DS_Store
+**/.git/
+**/.astro/
+**/.pytest_cache/
+**/__pycache__/
+**/*.py[cod]
+**/node_modules/
+**/dist/
+**/.venv/
+**/venv/
+**/*.log
+**/*.pid
+**/*.lock
+!**/package-lock.json
+!**/Gemfile.lock
+

@@ -1,0 +1,94 @@
+{
+  "ai": {
+    "provider": "ali",
+    "model": "qwen3.7-max",
+    "model_priority": [
+      "qwen3.7-max",
+      "qwen3.7-plus",
+      "qwen3-max",
+      "glm-5.1",
+      "deepseek-v4-pro",
+      "kimi-k2.6",
+      "qwen3.6-plus",
+      "qwen3.5-plus",
+      "qwen-max",
+      "qwen-plus-latest",
+      "qwen3.5-flash",
+      "qwen-flash",
+      "qwen-turbo"
+    ],
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "temperature": 0.3,
+    "max_tokens": 4096,
+    "throttle_sec": 0,
+    "analysis_concurrency": 2,
+    "enrichment_concurrency": 1,
+    "languages": ["zh"]
+  },
+  "processing": {
+    "profiles_dir": "/opt/dyyjs-horizon/profiles",
+    "default_profile": "tech-news",
+    "profile_settings": {
+      "tech-news": {"threshold": 7.0, "topic_dedup": true},
+      "tech-blog": {"threshold": 5.0, "topic_dedup": false}
+    }
+  },
+  "display": {"icon_style": "ascii"},
+  "sources": {
+    "github": [],
+    "hackernews": {
+      "enabled": true,
+      "fetch_top_stories": 30,
+      "min_score": 100,
+      "category": "general",
+      "profile": "tech-news"
+    },
+    "rss": [
+      {"name": "OpenAI", "url": "https://openai.com/news/rss.xml", "category": "ai", "profile": "tech-news"},
+      {"name": "Google AI", "url": "https://blog.google/technology/ai/rss/", "category": "ai", "profile": "tech-news"},
+      {"name": "NVIDIA", "url": "https://blogs.nvidia.com/feed/", "category": "hardware", "profile": "tech-news"},
+      {"name": "Hugging Face", "url": "https://huggingface.co/blog/feed.xml", "category": "open-source", "profile": "tech-blog", "content_extractor": "trafilatura"},
+      {"name": "TechCrunch AI", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "category": "ai", "profile": "tech-news"},
+      {"name": "MIT Technology Review AI", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed", "category": "ai", "profile": "tech-news"},
+      {"name": "AWS What's New", "url": "https://aws.amazon.com/about-aws/whats-new/recent/feed/", "category": "cloud", "profile": "tech-news"},
+      {"name": "AWS News", "url": "https://aws.amazon.com/blogs/aws/feed/", "category": "cloud", "profile": "tech-blog", "content_extractor": "trafilatura"},
+      {"name": "AWS China", "url": "https://aws.amazon.com/cn/blogs/china/feed/", "category": "cloud", "profile": "tech-blog", "content_extractor": "trafilatura"},
+      {"name": "TechPowerUp", "url": "https://www.techpowerup.com/rss/news", "category": "hardware", "profile": "tech-news"},
+      {"name": "ServeTheHome", "url": "https://www.servethehome.com/feed/", "category": "hardware", "profile": "tech-blog", "content_extractor": "trafilatura"},
+      {"name": "CISA Advisories", "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml", "category": "security", "profile": "tech-news"}
+    ],
+    "reddit": {"enabled": false, "subreddits": [], "users": [], "fetch_comments": 0},
+    "telegram": {"enabled": false, "channels": []},
+    "twitter": {"enabled": false, "users": []},
+    "openbb": {"enabled": false, "watchlists": [], "fetch_filings": false},
+    "ossinsight": {
+      "enabled": true,
+      "period": "past_24_hours",
+      "languages": ["All", "Python", "TypeScript"],
+      "keywords": [],
+      "min_stars": 10,
+      "max_items": 30,
+      "category": "open-source",
+      "profile": "tech-news"
+    },
+    "gdelt": {"enabled": false},
+    "google_news": {"enabled": false}
+  },
+  "collection": {"time_window_hours": 24},
+  "digest": {
+    "max_items": 25,
+    "profile_order": ["tech-news", "tech-blog"],
+    "category_groups": {
+      "ai": {"name": "AI", "limit": 7, "categories": ["ai"]},
+      "cloud": {"name": "云", "limit": 4, "categories": ["cloud"]},
+      "hardware": {"name": "硬件", "limit": 4, "categories": ["hardware"]},
+      "security": {"name": "安全", "limit": 4, "categories": ["security"]},
+      "open-source": {"name": "开源", "limit": 4, "categories": ["open-source"]},
+      "general": {"name": "综合技术", "limit": 2, "categories": ["general"]}
+    },
+    "default_group": "other",
+    "default_group_limit": 2
+  },
+  "webhook": {"enabled": false}
+}

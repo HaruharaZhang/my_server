@@ -1,0 +1,31 @@
+{
+  "paths": {
+    "state_dir": "/opt/dyyjs-bilibili/state",
+    "log_dir": "/opt/dyyjs-bilibili/logs",
+    "catalog_path": "/opt/dyyjs-bilibili/state/catalog.json",
+    "killswitch_path": "/opt/dyyjs-bilibili/state/killswitch.flag",
+    "publish_path": "/var/www/dyyjs/bilibili/history/index.html",
+    "image_dir": "/var/www/dyyjs/bilibili/history/images"
+  },
+  "network": {
+    "listen_host": "127.0.0.1",
+    "listen_port": 8091
+  },
+  "limits": {
+    "max_concurrent_streams": 3,
+    "auth_window_seconds": 300,
+    "auth_max_failures": 20,
+    "max_duration_seconds": 14400,
+    "image_max_bytes": 5242880,
+    "image_max_width": 640,
+    "chunk_size": 65536,
+    "plan_cache_seconds": 600
+  },
+  "bilibili": {
+    "allowed_hosts": ["bilibili.com", "www.bilibili.com", "m.bilibili.com"],
+    "short_link_hosts": ["b23.tv"],
+    "allowed_thumbnail_host_suffix": ".hdslb.com",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "referer": "https://www.bilibili.com"
+  }
+}

@@ -1,0 +1,189 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { portfolioCategories } from '../data/portfolio';
+import portfolioImages from '../data/portfolio-images.json';
+import { sitePath } from '../utils/site-path';
+
+const reelImages = portfolioImages.map((image, index) => {
+	const category = portfolioCategories.find((item) => item.id === image.category);
+	if (!category) throw new Error(`Unknown reel category: ${image.category}`);
+
+	return {
+		...image,
+		src: sitePath(image.src),
+		lightboxIndex: index,
+		label: category.title,
+		ratioValue: image.width / image.height,
+		isPortrait: image.width / image.height < .85,
+	};
+});
+
+const rowPattern = [3, 4, 5, 3, 4];
+const reelRows: Array<typeof reelImages> = [];
+let imageCursor = 0;
+let rowCursor = 0;
+
+while (imageCursor < reelImages.length) {
+	const rowLength = rowPattern[rowCursor % rowPattern.length];
+	reelRows.push(reelImages.slice(imageCursor, imageCursor + rowLength));
+	imageCursor += rowLength;
+	rowCursor += 1;
+}
+---
+
+<BaseLayout title="About" bodyClass="about-page">
+	<div class="about-split">
+		<section class="about-reel" aria-label="Selected photography reel">
+			<div class="about-reel-track">
+				{[0, 1].map((copy) => (
+					<div class="about-reel-set" aria-hidden={copy === 1 ? 'true' : undefined}>
+						{reelRows.map((row, rowIndex) => (
+							<div class="about-reel-row">
+								{row.map((image) => (
+									<button
+										class:list={['about-reel-image', image.isPortrait && 'about-reel-image-portrait']}
+										style={`--image-ratio: ${image.ratioValue}`}
+										type="button"
+										data-about-lightbox-open
+										data-about-lightbox-index={image.lightboxIndex}
+										data-about-lightbox-src={image.src}
+										data-about-lightbox-title={image.title}
+										data-about-lightbox-date={image.date}
+										data-about-lightbox-width={image.width}
+										data-about-lightbox-height={image.height}
+										tabindex={copy === 1 ? '-1' : undefined}
+										aria-label={`全屏查看 ${image.title}`}
+									>
+										<img
+											src={image.src}
+											alt={copy === 0 ? `${image.label} ${image.id.split('-').at(-1)}` : ''}
+											width={image.width}
+											height={image.height}
+											loading={copy === 0 && rowIndex < 2 ? 'eager' : 'lazy'}
+											decoding="async"
+										/>
+									</button>
+								))}
+							</div>
+						))}
+					</div>
+				))}
+			</div>
+
+			<div class="about-reel-caption">
+				<p>ABOUT ME</p>
+				<span>VRCHAT PHOTOGRAPHY</span>
+			</div>
+		</section>
+
+		<section class="about-profile">
+			<div class="about-profile-inner">
+				<p class="section-kicker">01 — ABOUT</p>
+				<header class="about-profile-heading">
+					<p>I make some vrchat contants～</p>
+					<h1>Xiaoyu12</h1>
+				</header>
+
+				<div class="about-profile-copy">
+					<p>Hi 👋~ My name is Xiaoyu12. I love taking photos and dancing in VRChat. I’ve gathered some of my favorite photos here—including photos of my own avatar, group photos with friends, beautiful worlds, and photos I’ve taken of other people! I also post videos on Douyin, Bilibili, and other platforms.</p>
+					<p>You can often find me wandering through all kinds of worlds in VRChat—let’s take some photos together~</p>
+					<p>I usually appear as a black-haired, blue-eyed girl~</p>
+					<p>The orange-haired girl with green accessories is an original character inspired by 🍊. Her name is Mikan~</p>
+					<p>I also have a little orange cat—and his name is Mikan too!</p>
+				</div>
+
+				<nav class="about-categories" aria-label="Portfolio categories">
+					{portfolioCategories.map((category) => (
+						<a href={`${sitePath('portfolio/')}#${category.id}`}>
+							<span>{category.number}</span>
+							<strong>{category.title}</strong>
+							<i>↗</i>
+						</a>
+					))}
+				</nav>
+			</div>
+		</section>
+	</div>
+
+	<dialog class="about-lightbox" data-about-lightbox aria-label="照片全屏查看器">
+		<div class="about-lightbox-stage" data-about-lightbox-stage>
+			<img data-about-lightbox-image alt="" />
+		</div>
+
+		<button class="about-lightbox-control about-lightbox-close" type="button" data-about-lightbox-close aria-label="关闭全屏查看">×</button>
+		<button class="about-lightbox-control about-lightbox-previous" type="button" data-about-lightbox-previous aria-label="上一张照片">←</button>
+		<button class="about-lightbox-control about-lightbox-next" type="button" data-about-lightbox-next aria-label="下一张照片">→</button>
+
+		<div class="about-lightbox-meta">
+			<strong data-about-lightbox-title></strong>
+			<time data-about-lightbox-date></time>
+			<span data-about-lightbox-count></span>
+		</div>
+	</dialog>
+</BaseLayout>
+
+<script>
+	const lightbox = document.querySelector<HTMLDialogElement>('[data-about-lightbox]');
+	const lightboxStage = document.querySelector<HTMLElement>('[data-about-lightbox-stage]');
+	const lightboxImage = document.querySelector<HTMLImageElement>('[data-about-lightbox-image]');
+	const lightboxTitle = document.querySelector<HTMLElement>('[data-about-lightbox-title]');
+	const lightboxDate = document.querySelector<HTMLTimeElement>('[data-about-lightbox-date]');
+	const lightboxCount = document.querySelector<HTMLElement>('[data-about-lightbox-count]');
+	const lightboxClose = document.querySelector<HTMLButtonElement>('[data-about-lightbox-close]');
+	const lightboxPrevious = document.querySelector<HTMLButtonElement>('[data-about-lightbox-previous]');
+	const lightboxNext = document.querySelector<HTMLButtonElement>('[data-about-lightbox-next]');
+	const allLightboxButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-about-lightbox-open]'));
+	const lightboxButtons = allLightboxButtons.filter((button) => !button.closest('[aria-hidden="true"]'));
+	let activeLightboxIndex = 0;
+	let lightboxTrigger: HTMLButtonElement | null = null;
+
+	const renderLightbox = () => {
+		const button = lightboxButtons[activeLightboxIndex];
+		if (!button || !lightboxImage) return;
+		const title = button.dataset.aboutLightboxTitle ?? '';
+		const date = button.dataset.aboutLightboxDate ?? '';
+		lightboxImage.src = button.dataset.aboutLightboxSrc ?? '';
+		lightboxImage.alt = title;
+		lightboxImage.width = Number(button.dataset.aboutLightboxWidth) || 0;
+		lightboxImage.height = Number(button.dataset.aboutLightboxHeight) || 0;
+		if (lightboxTitle) lightboxTitle.textContent = title;
+		if (lightboxDate) {
+			lightboxDate.textContent = date;
+			lightboxDate.dateTime = date.replaceAll('/', '-');
+		}
+		if (lightboxCount) lightboxCount.textContent = `${activeLightboxIndex + 1} / ${lightboxButtons.length}`;
+	};
+
+	const openLightbox = (button: HTMLButtonElement) => {
+		if (!lightbox) return;
+		activeLightboxIndex = Number(button.dataset.aboutLightboxIndex) || 0;
+		lightboxTrigger = button;
+		renderLightbox();
+		document.body.classList.add('about-lightbox-open');
+		if (!lightbox.open) lightbox.showModal();
+		lightboxClose?.focus();
+	};
+
+	const moveLightbox = (direction: number) => {
+		if (!lightboxButtons.length) return;
+		activeLightboxIndex = (activeLightboxIndex + direction + lightboxButtons.length) % lightboxButtons.length;
+		renderLightbox();
+	};
+
+	allLightboxButtons.forEach((button) => button.addEventListener('click', () => openLightbox(button)));
+	lightboxClose?.addEventListener('click', () => lightbox?.close());
+	lightboxPrevious?.addEventListener('click', () => moveLightbox(-1));
+	lightboxNext?.addEventListener('click', () => moveLightbox(1));
+	lightboxStage?.addEventListener('click', (event) => {
+		if (event.target === lightboxStage) lightbox?.close();
+	});
+	lightbox?.addEventListener('close', () => {
+		document.body.classList.remove('about-lightbox-open');
+		lightboxTrigger?.focus();
+	});
+	window.addEventListener('keydown', (event) => {
+		if (!lightbox?.open) return;
+		if (event.key === 'ArrowLeft') moveLightbox(-1);
+		if (event.key === 'ArrowRight') moveLightbox(1);
+	});
+</script>

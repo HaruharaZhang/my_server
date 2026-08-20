@@ -1,0 +1,25 @@
+{
+  "version": "1.1.0",
+  "site_root": "/var/www/dyyjs/status",
+  "state_dir": "/opt/dyyjs-status/state",
+  "sampler_snapshot": "/opt/dyyjs-status/state/network-peaks.json",
+  "domains": ["dyyjs.com", "dongyunyanjiusuo.com"],
+  "services": [
+    {"unit": "caddy.service", "name": "Web 服务", "core": true},
+    {"unit": "dyyjs-news.timer", "name": "新闻流水线", "core": true},
+    {"unit": "dyyjs-youtube.service", "name": "视频中继", "core": true},
+    {"unit": "dyyjs-youtube-pot.service", "name": "视频解析组件", "core": true},
+    {"unit": "dyyjs-status-sampler.service", "name": "公网流量采样", "core": true},
+    {"unit": "mihomo.service", "name": "网络代理", "core": true},
+    {"unit": "ssh.service", "name": "远程维护", "core": true},
+    {"unit": "ufw.service", "name": "主机防火墙", "core": true}
+  ],
+  "timers": [
+    {"unit": "dyyjs-news.timer", "name": "新闻生成"},
+    {"unit": "dyyjs-horizon.timer", "name": "Horizon 日报"},
+    {"unit": "dyyjs-youtube-update.timer", "name": "视频组件更新"},
+    {"unit": "dyyjs-youtube-cleanup.timer", "name": "视频缓存清理"},
+    {"unit": "mihomo-subscription-update.timer", "name": "代理订阅更新"},
+    {"unit": "apt-daily-upgrade.timer", "name": "系统安全更新"}
+  ]
+}

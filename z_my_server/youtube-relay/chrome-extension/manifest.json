@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "dyyjs 中转链接",
+  "version": "1.1",
+  "description": "在 YouTube 或 Bilibili 视频页点击图标，把当前视频包装成对应的 dyyjs 中转链接并复制到剪贴板。",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "复制 dyyjs 中转链接"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
+}

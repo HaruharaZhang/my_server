@@ -1,0 +1,6 @@
+[Unit]
+Description=dyyjs Minecraft world daily backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/dyyjs-minecraft/backup-world.sh

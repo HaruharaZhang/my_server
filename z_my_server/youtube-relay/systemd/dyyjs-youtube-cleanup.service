@@ -1,0 +1,7 @@
+[Unit]
+Description=Prune YouTube relay cache files not accessed in 30 days
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/dyyjs-youtube/app
+ExecStart=/opt/dyyjs-youtube/venv/bin/python /opt/dyyjs-youtube/app/cleanup_cache.py

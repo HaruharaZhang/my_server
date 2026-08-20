@@ -1,0 +1,104 @@
+{
+  "api": {
+    "base_url": "https://ws-tpl1gizw6rz4xbm1.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "model_priority": [
+      "qwen3.7-max", "qwen3.7-plus", "qwen3-max", "glm-5.1", "deepseek-v4-pro",
+      "kimi-k2.6", "qwen3.6-plus", "qwen3.5-plus", "qwen-max", "qwen-plus-latest",
+      "qwen3.5-flash", "qwen-flash", "qwen-turbo"
+    ]
+  },
+  "categories": ["科技", "新硬件", "AI", "热门开源项目", "人气攀升开源项目", "央视新闻", "AWS global", "AWS CN", "动漫", "VRChat", "CS2", "CVE"],
+  "category_layout": {"动漫": "calendar", "CVE": "cve"},
+  "cve": {
+    "proxy_url": "http://127.0.0.1:7890",
+    "max_retries": 3,
+    "connect_timeout": 5,
+    "read_timeout": 30,
+    "backoff_seconds": [1, 2, 4],
+    "display_days": 30,
+    "minimum_sources": 10,
+    "cvss_min": 7.0,
+    "epss_min_percent": 10.0,
+    "epss_percentile_min": 90.0,
+    "service_aliases": {
+      "LiteLLM": ["litellm", "berriai/litellm"],
+      "Kubernetes": ["kubernetes", "k8s.io"],
+      "OpenSSH": ["openssh", "openbsd:openssh"]
+    },
+    "sources": [
+      {"name": "cvelistV5", "url": "https://api.github.com/repos/CVEProject/cvelistV5/commits?path=cves&per_page=1", "enabled": true},
+      {"name": "NVD", "url": "https://services.nvd.nist.gov/rest/json/cves/2.0", "api_key_env": "NVD_API_KEY", "enabled": true},
+      {"name": "GitHub Advisory", "url": "https://api.github.com/advisories", "enabled": true},
+      {"name": "OSV", "url": "https://api.osv.dev/v1/vulns", "enabled": true},
+      {"name": "CISA KEV", "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json", "enabled": true},
+      {"name": "FIRST EPSS", "url": "https://api.first.org/data/v1/epss", "enabled": true},
+      {"name": "Red Hat", "url": "https://access.redhat.com/hydra/rest/securitydata/cve.json?after=2026-01-01", "enabled": true},
+      {"name": "Ubuntu OSV", "url": "https://security-metadata.canonical.com/osv/index.json", "enabled": true},
+      {"name": "Debian", "url": "https://security-tracker.debian.org/tracker/data/json", "enabled": true},
+      {"name": "SUSE CSAF/VEX", "url": "https://ftp.suse.com/pub/projects/security/csaf/1.2/suse/product_tree.json", "enabled": true},
+      {"name": "Microsoft MSRC", "url": "https://api.msrc.microsoft.com/cvrf/v3.0/updates", "enabled": true}
+    ]
+  },
+  "limits": {
+    "max_candidates_total": 200,
+    "max_per_category": 50,
+    "seed_max_per_source": 30,
+    "seed_window_days": 1,
+    "summary_batch_size": 25,
+    "image_max_bytes": 5242880,
+    "image_max_width": 640
+  },
+  "paths": {
+    "state_dir": "/opt/dyyjs-news/state",
+    "out_dir": "/opt/dyyjs-news/out",
+    "log_dir": "/opt/dyyjs-news/logs",
+    "publish_path": "/var/www/dyyjs/news/index.html",
+    "archive_dir": "/var/www/dyyjs/news/archive",
+    "image_dir": "/var/www/dyyjs/news/images"
+  },
+  "retention_days": {
+    "seen": 30,
+    "logs": 30,
+    "archive": 30,
+    "images": 30,
+    "out": 30
+  },
+  "sources": [
+    {"name": "央视网科技", "type": "html_list", "url": "https://news.cctv.com/tech/", "allow_url_regex": "https://news\\.cctv\\.com/20\\d{2}/\\d{2}/\\d{2}/[^\"'<> ]+\\.shtml", "categories": ["科技", "AI", "新硬件"], "enabled": true},
+    {"name": "央视新闻 国内", "type": "html_list", "url": "https://news.cctv.com/china/", "allow_url_regex": "https://news\\.cctv\\.com/20\\d{2}/\\d{2}/\\d{2}/[^\"'<> ]+\\.shtml", "categories": ["央视新闻"], "enabled": true},
+    {"name": "央视新闻 国际", "type": "html_list", "url": "https://news.cctv.com/world/", "allow_url_regex": "https://news\\.cctv\\.com/20\\d{2}/\\d{2}/\\d{2}/[^\"'<> ]+\\.shtml", "categories": ["央视新闻"], "enabled": true},
+    {"name": "央视新闻 社会", "type": "html_list", "url": "https://news.cctv.com/society/", "allow_url_regex": "https://news\\.cctv\\.com/20\\d{2}/\\d{2}/\\d{2}/[^\"'<> ]+\\.shtml", "categories": ["央视新闻"], "enabled": true},
+    {"name": "央视新闻 法治", "type": "html_list", "url": "https://news.cctv.com/law/", "allow_url_regex": "https://news\\.cctv\\.com/20\\d{2}/\\d{2}/\\d{2}/[^\"'<> ]+\\.shtml", "categories": ["央视新闻"], "enabled": true},
+    {"name": "Google AI Blog", "type": "rss", "url": "https://blog.google/innovation-and-ai/technology/ai/rss/", "categories": ["AI", "科技"], "proxy": true, "enabled": true},
+    {"name": "OpenAI News", "type": "rss", "url": "https://openai.com/news/rss.xml", "categories": ["AI"], "proxy": true, "enabled": true},
+    {"name": "NVIDIA Technical Blog", "type": "rss", "url": "https://developer.nvidia.com/blog/feed/", "categories": ["AI", "新硬件"], "proxy": true, "enabled": true},
+    {"name": "Hugging Face Blog", "type": "rss", "url": "https://huggingface.co/blog/feed.xml", "categories": ["AI", "科技"], "proxy": true, "enabled": true},
+    {"name": "Ars Technica", "type": "rss", "url": "https://feeds.arstechnica.com/arstechnica/index", "categories": ["科技"], "proxy": true, "enabled": true},
+    {"name": "TechCrunch AI", "type": "rss", "url": "https://techcrunch.com/category/artificial-intelligence/feed/", "categories": ["AI", "科技"], "proxy": true, "enabled": true},
+    {"name": "MIT Technology Review", "type": "rss", "url": "https://www.technologyreview.com/feed/", "categories": ["科技", "AI"], "proxy": true, "enabled": true},
+    {"name": "AWS What's New", "type": "rss", "url": "https://aws.amazon.com/about-aws/whats-new/recent/feed/", "categories": ["AWS global", "科技"], "proxy": true, "enabled": true},
+    {"name": "AWS News Blog", "type": "rss", "url": "https://aws.amazon.com/blogs/aws/feed/", "categories": ["AWS global"], "proxy": true, "enabled": true},
+    {"name": "AWS China Blog", "type": "rss", "url": "https://aws.amazon.com/cn/blogs/china/feed/", "categories": ["AWS CN"], "proxy": true, "enabled": true},
+    {"name": "AWS 近期公告 CN", "type": "rss", "url": "https://aws.amazon.com/cn/about-aws/whats-new/recent/feed/", "categories": ["AWS CN"], "proxy": true, "enabled": true},
+    {"name": "VRChat Official Blog", "type": "rss", "url": "https://hello.vrchat.com/blog?format=rss", "categories": ["VRChat"], "proxy": true, "enabled": true},
+    {"name": "VRChat Steam News", "type": "rss", "url": "https://store.steampowered.com/feeds/news/app/438100/?cc=us&l=english", "categories": ["VRChat"], "proxy": true, "enabled": true},
+    {"name": "Counter-Strike Blog", "type": "rss", "url": "https://blog.counter-strike.net/feed/", "categories": ["CS2"], "proxy": true, "enabled": true},
+    {"name": "CS2 Steam News", "type": "rss", "url": "https://store.steampowered.com/feeds/news/app/730/?cc=us&l=english", "categories": ["CS2"], "proxy": true, "enabled": true},
+    {"name": "Tom's Hardware", "type": "rss", "url": "https://www.tomshardware.com/feeds.xml", "categories": ["新硬件", "科技"], "proxy": true, "enabled": false},
+    {"name": "TechPowerUp", "type": "rss", "url": "https://www.techpowerup.com/rss/news", "categories": ["新硬件"], "proxy": true, "enabled": true},
+    {"name": "ServeTheHome", "type": "rss", "url": "https://www.servethehome.com/feed/", "categories": ["新硬件", "AI"], "proxy": true, "enabled": true},
+    {"name": "The Verge AI", "type": "rss", "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "categories": ["AI", "科技"], "proxy": true, "enabled": true},
+    {"name": "VentureBeat AI", "type": "rss", "url": "https://venturebeat.com/category/ai/feed/", "categories": ["AI"], "proxy": true, "enabled": true},
+    {"name": "Solidot", "type": "rss", "url": "https://www.solidot.org/index.rss", "categories": ["科技", "热门开源项目"], "enabled": false},
+    {"name": "机器之心", "type": "rss", "url": "https://www.jiqizhixin.com/rss", "categories": ["AI"], "enabled": false},
+    {"name": "量子位", "type": "rss", "url": "https://www.qbitai.com/feed", "categories": ["AI"], "enabled": false},
+    {"name": "V2EX 热议", "type": "v2ex", "url": "https://www.v2ex.com/api/topics/hot.json", "categories": ["科技", "热门开源项目"], "enabled": false},
+    {"name": "开源中国", "type": "rss", "url": "https://www.oschina.net/news/rss", "categories": ["热门开源项目"], "enabled": false},
+    {"name": "GitHub AI 人气攀升", "type": "github", "created_within_days": 30, "query": "topic:ai created:>{since}", "categories": ["人气攀升开源项目"], "dedup_priority": 100, "proxy": true, "enabled": true},
+    {"name": "GitHub 热门项目", "type": "github", "created_within_days": 90, "categories": ["热门开源项目"], "dedup_priority": 10, "proxy": true, "enabled": true},
+    {"name": "GitHub 热门 AI 项目", "type": "github", "created_within_days": 90, "query": "topic:ai created:>{since}", "categories": ["热门开源项目"], "dedup_priority": 20, "proxy": true, "enabled": true},
+    {"name": "Hacker News", "type": "json", "url": "https://hn.algolia.com/api/v1/search?tags=front_page", "categories": ["科技"], "proxy": true, "enabled": false},
+    {"name": "TechCrunch", "type": "rss", "url": "https://techcrunch.com/feed/", "categories": ["科技"], "proxy": true, "enabled": false}
+  ]
+}

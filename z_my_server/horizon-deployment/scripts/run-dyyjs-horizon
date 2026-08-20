@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE=/opt/dyyjs-horizon
+APP="$BASE/app"
+DATA="$BASE/data"
+JEKYLL="$BASE/jekyll"
+RELEASES="$BASE/releases"
+PUBLIC=/var/www/dyyjs/horizon/current
+TODAY=$(TZ=Asia/Shanghai date +%F)
+RUN_ID=$(TZ=Asia/Shanghai date +%Y%m%d-%H%M%S)
+RELEASE="$RELEASES/$RUN_ID"
+BUILD_TMP="$RELEASE.tmp"
+LOG_TMP="$BASE/logs/$RUN_ID.log.tmp"
+LOG="$BASE/logs/$RUN_ID.log"
+
+mkdir -p "$DATA" "$JEKYLL/_posts" "$RELEASES" "$BASE/logs"
+
+finish_log() {
+    if [[ -f "$LOG_TMP" ]]; then
+        mv "$LOG_TMP" "$LOG"
+    fi
+}
+trap finish_log EXIT
+
+"$APP/.venv/bin/python" -m src.main --data-dir "$DATA" --config "$DATA/config.json" \
+    2>&1 | tee "$LOG_TMP"
+
+POST="$JEKYLL/_posts/$TODAY-summary-zh.md"
+if [[ ! -s "$POST" ]]; then
+    echo "Expected today's Chinese post was not generated: $POST" >&2
+    exit 1
+fi
+
+rm -rf "$BUILD_TMP"
+mkdir -p "$BUILD_TMP"
+(cd "$JEKYLL" && BUNDLE_GEMFILE="$JEKYLL/Gemfile" \
+    /usr/local/bin/bundle exec jekyll build \
+    --source "$JEKYLL" \
+    --destination "$BUILD_TMP" \
+    --config "$JEKYLL/_config.yml,$JEKYLL/_config.production.yml" \
+    --strict_front_matter)
+
+test -s "$BUILD_TMP/index.html"
+test -s "$BUILD_TMP/feed.xml"
+if grep -R -n -E '(href|src)="/Horizon(/|\")' "$BUILD_TMP"; then
+    echo "Built site still contains the upstream /Horizon base URL" >&2
+    exit 1
+fi
+if ! grep -R -q '/horizon/' "$BUILD_TMP/index.html" "$BUILD_TMP/feed.xml"; then
+    echo "Built site does not contain the production /horizon/ base URL" >&2
+    exit 1
+fi
+
+find "$BUILD_TMP" -type d -exec chmod 0755 {} +
+find "$BUILD_TMP" -type f -exec chmod 0644 {} +
+
+mv "$BUILD_TMP" "$RELEASE"
+LINK_TMP="/var/www/dyyjs/horizon/.current-$RUN_ID"
+ln -s "$RELEASE" "$LINK_TMP"
+mv -Tf "$LINK_TMP" "$PUBLIC"
+
+find "$RELEASES" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+    | sort -nr | tail -n +8 | cut -d' ' -f2- | xargs -r rm -rf
+
+MODELS=$(sed -n 's/.*Models used this run: //p' "$LOG_TMP" | tail -1)
+STATUS_TMP="$BASE/state/status.json.tmp"
+mkdir -p "$BASE/state"
+python3 - "$STATUS_TMP" "$TODAY" "$RUN_ID" "$MODELS" <<'PY'
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+path, content_date, release, models = sys.argv[1:]
+payload = {
+    "status": "healthy",
+    "content_date": content_date,
+    "release": release,
+    "models": [item.strip() for item in models.split(",") if item.strip()],
+    "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
+    handle.write("\n")
+os.chmod(path, 0o640)
+PY
+mv "$STATUS_TMP" "$BASE/state/status.json"
+
+echo "Published Horizon release $RUN_ID for $TODAY"

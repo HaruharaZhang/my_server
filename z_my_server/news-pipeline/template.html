@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>东云资讯</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--tabs-height:4.2rem;--loading-offset:1.5rem}
+html,body{height:100%}
+body{
+  background:#F0EEE6;
+  color:#1F1E1D;
+  font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  line-height:1.6;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:2rem 1.2rem;min-height:100vh;display:flex;flex-direction:column}
+header{margin-bottom:1.6rem}
+h1{font-size:1.7rem;font-weight:700;letter-spacing:.15em}
+header p{font-size:.8rem;color:#87857C;margin-top:.35rem;letter-spacing:.03em}
+.digest{
+  background:#FAF9F5;
+  border:1px solid #E0DCCF;
+  border-left:3px solid #D97757;
+  border-radius:10px;
+  padding:1rem 1.2rem;
+  margin-bottom:1.8rem;
+}
+.digest h2{font-size:1rem;letter-spacing:.12em;margin-bottom:.5rem}
+.digest p{font-size:.9rem;color:#3D3C38;text-align:justify}
+.digest a{color:#C15F3C;text-decoration:underline}
+.digest a:hover{color:#D97757}
+.tabs{
+  position:sticky;
+  top:0;
+  z-index:5;
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  margin:0 -1.2rem 1.2rem;
+  padding:.7rem 1.2rem;
+  background:rgba(240,238,230,.94);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid #E0DCCF;
+}
+.loading-status{
+  position:absolute;
+  left:1.2rem;
+  right:1.2rem;
+  bottom:-1.35rem;
+  z-index:6;
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+  color:#87857C;
+  font-size:.72rem;
+  pointer-events:none;
+}
+.loading-status[hidden]{display:none}
+.loading-track{
+  position:relative;
+  flex:1;
+  height:3px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#E0DCCF;
+}
+.loading-track::after{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:32%;
+  border-radius:inherit;
+  background:#D97757;
+  animation:loadingSweep 1.15s ease-in-out infinite;
+}
+.loading-status.failed{color:#9D3D2D}
+.loading-status.failed .loading-track::after{width:100%;animation:none;background:#B84A35}
+@keyframes loadingSweep{
+  0%{transform:translateX(-110%)}
+  50%{transform:translateX(105%)}
+  100%{transform:translateX(315%)}
+}
+.tab{
+  border:1px solid #D3CFC3;
+  background:transparent;
+  color:#3D3C38;
+  font:inherit;
+  font-size:.85rem;
+  padding:.35rem .9rem;
+  border-radius:999px;
+  cursor:pointer;
+}
+.tab:hover{border-color:#D97757;color:#C15F3C}
+.tab.active{background:#D97757;border-color:#D97757;color:#FAF9F5}
+.tab .count{opacity:.65;font-size:.75rem;margin-left:.25rem}
+.content{position:relative;z-index:1;display:grid;grid-template-columns:minmax(0,1fr) 92px;grid-template-areas:"feed timeline";gap:1.4rem;align-items:start}
+.content[hidden]{display:none}
+.feed-column{grid-area:feed}
+main{position:relative;flex:1 0 auto}
+.date-bg{
+  position:fixed;
+  left:max(1.2rem,calc((100vw - 1120px) / 2 + 1.2rem));
+  top:31vh;
+  z-index:0;
+  width:min(42vw,20rem);
+  color:rgba(31,30,29,.055);
+  font-size:clamp(9rem,20vw,18rem);
+  font-weight:800;
+  line-height:.8;
+  letter-spacing:0;
+  pointer-events:none;
+  user-select:none;
+  transform:translate3d(0,var(--date-shift,0px),0);
+  transition:transform .18s ease-out,opacity .2s ease-out;
+}
+.date-bg[hidden]{display:none}
+.date-bg span{
+  display:block;
+  position:relative;
+  will-change:transform,opacity;
+}
+.date-bg.turning::before{
+  content:attr(data-prev);
+  position:absolute;
+  inset:0 auto auto 0;
+  animation:dateFlipOut .36s ease both;
+}
+.date-bg.turning span{animation:dateFlipIn .36s ease both}
+@keyframes dateFlipOut{
+  from{opacity:1;transform:translateY(0) rotateX(0deg)}
+  to{opacity:0;transform:translateY(-.22em) rotateX(48deg)}
+}
+@keyframes dateFlipIn{
+  from{opacity:0;transform:translateY(.22em) rotateX(-48deg)}
+  to{opacity:1;transform:translateY(0) rotateX(0deg)}
+}
+.timeline{grid-area:timeline;position:sticky;top:calc(var(--tabs-height) + var(--loading-offset) + .75rem);display:flex;flex-direction:column;gap:.35rem}
+.timeline button{
+  border:0;
+  border-left:3px solid #D3CFC3;
+  background:transparent;
+  color:#87857C;
+  cursor:pointer;
+  font:inherit;
+  font-size:.78rem;
+  text-align:left;
+  padding:.25rem 0 .25rem .55rem;
+}
+.timeline button.active{border-left-color:#D97757;color:#C15F3C;font-weight:650}
+.date-block{scroll-margin-top:calc(var(--tabs-height) + 2.2rem);margin-bottom:4rem}
+.date-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-bottom:.75rem}
+.date-head h2{font-size:1.1rem;font-weight:700;letter-spacing:.08em}
+.model-line{font-size:.75rem;color:#87857C;text-align:right}
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem}
+.card{
+  display:flex;
+  flex-direction:column;
+  gap:.9rem;
+  background:#FAF9F5;
+  border:1px solid #E0DCCF;
+  border-radius:12px;
+  padding:.9rem;
+  text-decoration:none;
+  color:inherit;
+  transition:border-color .15s,box-shadow .15s;
+}
+.card:hover{border-color:#D97757;box-shadow:0 2px 10px rgba(120,100,70,.12)}
+.card-main{display:flex;gap:.9rem;min-width:0}
+.card img{
+  width:180px;
+  min-width:180px;
+  height:112px;
+  object-fit:cover;
+  border-radius:8px;
+  align-self:center;
+  background:#E9E6DC;
+}
+.card-body{min-width:0;display:flex;flex-direction:column;justify-content:center}
+.card-title{min-width:0}
+.card-title h3,.card-title .title-zh{font-size:1.05rem;line-height:1.4;word-break:break-word}
+.card-title h3{font-weight:700;margin-bottom:.15rem}
+.card-title .title-zh{font-weight:400;color:#3D3C38;margin-bottom:.45rem}
+.card:hover h3{color:#C15F3C}
+.card-body p{font-size:.83rem;color:#55534C;margin-bottom:.35rem}
+.meta{font-size:.72rem;color:#A3A196;letter-spacing:.03em}
+.repo-meta{font-size:.72rem;color:#8F8D83;letter-spacing:.02em;margin-top:.15rem;overflow-wrap:anywhere}
+.empty{font-size:.85rem;color:#A3A196;padding:1.5rem 0;text-align:center}
+.cve-panel{display:grid;gap:2rem}
+.cve-panel[hidden]{display:none}
+.cve-status{background:#FAF9F5;border:1px solid #E0DCCF;border-left:3px solid #D97757;border-radius:10px;padding:.8rem 1rem;font-size:.8rem;color:#55534C}
+.cve-status.degraded{border-left-color:#B42318;background:#FFF7F5;color:#7A271A}
+.cve-card{background:#FAF9F5;border:1px solid #E0DCCF;border-radius:12px;padding:1rem;display:grid;gap:.8rem}
+.cve-card h2{font-size:1.05rem;line-height:1.45}
+.cve-purpose{font-size:.78rem;color:#87857C;margin-top:-.45rem}
+.cve-service-list{display:grid;gap:1.15rem}
+.cve-row{position:relative;border-top:1px solid #E9E6DC;padding-top:.7rem;display:grid;gap:.45rem}
+.cve-row:hover .cve-id{color:#C15F3C}
+.cve-row-link{position:absolute;inset:.35rem 0 0;z-index:1;border-radius:8px}
+.cve-head{display:flex;align-items:baseline;justify-content:space-between;gap:1rem}
+.cve-id{font-weight:700;color:#3D3C38;text-decoration:none}
+.cve-severity{font-size:.78rem;color:#7A271A;font-weight:650;text-align:right}
+.cve-summary{font-size:.84rem;color:#55534C;line-height:1.6}
+.cve-facts{font-size:.8rem;color:#55534C}
+.cve-details{position:relative;z-index:2;font-size:.78rem;color:#55534C}
+.cve-details summary{cursor:pointer;color:#C15F3C;width:max-content;list-style-position:inside}
+.cve-detail-body{display:grid;gap:.35rem;margin-top:.45rem}
+.cve-links{display:flex;flex-wrap:wrap;gap:.6rem;font-size:.75rem;position:relative;z-index:3}
+.cve-links a{color:#C15F3C}
+#sentinel{height:1px}
+#sentinel.anchor-reserve{height:200vh}
+.calendar{position:relative;z-index:1;overflow-x:auto}
+.cal-head,.cal-row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.5rem}
+.cal-head{margin-bottom:.5rem;text-align:center;font-size:.8rem;color:#87857C;letter-spacing:.05em}
+.cal-row{margin-bottom:.5rem}
+.cal-cell{
+  background:#FAF9F5;
+  border:1px solid #E0DCCF;
+  border-radius:10px;
+  padding:.5rem;
+  min-height:120px;
+  display:flex;
+  flex-direction:column;
+  gap:.35rem;
+}
+.cal-cell-out{opacity:.4}
+.cal-cell-today{border-color:#D97757;box-shadow:inset 0 0 0 1px #D97757}
+.cal-date{font-size:.78rem;color:#87857C;font-weight:600}
+.cal-cell-today .cal-date{color:#D97757;font-weight:700}
+.cal-anime{display:flex;align-items:center;gap:.4rem;font-size:.75rem;color:#3D3C38;text-decoration:none}
+.cal-anime:hover{color:#C15F3C}
+.cal-anime img{width:28px;height:28px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#E9E6DC}
+.cal-anime-delay{color:#A3A196;text-decoration:line-through}
+.lxh-banner{
+  display:flex;
+  align-items:center;
+  gap:.9rem;
+  background:#FAF9F5;
+  border:1px solid #E0DCCF;
+  border-left:3px solid #D97757;
+  border-radius:10px;
+  padding:.8rem 1rem;
+  margin-bottom:1rem;
+  text-decoration:none;
+  color:inherit;
+}
+.lxh-banner:hover{border-color:#D97757}
+.lxh-banner img{width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#E9E6DC}
+.lxh-banner-body{min-width:0}
+.lxh-banner-title{font-size:.9rem;font-weight:700;margin-bottom:.2rem}
+.lxh-banner-title .lxh-ep{color:#C15F3C}
+.lxh-banner-meta{font-size:.75rem;color:#87857C}
+.lxh-banner[hidden]{display:none}
+@media(max-width:760px){
+  .cal-head,.cal-row{grid-template-columns:repeat(7,minmax(70px,1fr));min-width:560px}
+  .cal-cell{min-height:90px;padding:.4rem}
+}
+@media(max-width:760px){
+  .date-bg{
+    left:1rem;
+    top:34vh;
+    width:55vw;
+    font-size:clamp(6rem,35vw,11rem);
+    color:rgba(31,30,29,.045);
+  }
+  .content{display:flex;flex-direction:column}
+  .timeline{order:-1;position:sticky;top:calc(var(--tabs-height) + var(--loading-offset));z-index:4;flex-direction:row;overflow:auto;margin:0 -1.2rem 1rem;padding:.45rem 1.2rem;background:rgba(240,238,230,.94);border-bottom:1px solid #E0DCCF}
+  .timeline button{white-space:nowrap;border-left:0;border-bottom:3px solid #D3CFC3;padding:.2rem .25rem}
+  .timeline button.active{border-bottom-color:#D97757}
+  .date-head{display:block}
+  .model-line{text-align:left;margin-top:.15rem}
+  .card-main{display:block}
+  .card img{width:100%;height:auto;aspect-ratio:16/9;margin-bottom:.75rem}
+}
+@media(prefers-reduced-motion:reduce){
+  .date-bg{transition:none;transform:none!important}
+  .date-bg.turning::before,.date-bg.turning span{animation:none}
+  .loading-track::after{animation:none;transform:none;width:100%;opacity:.7}
+}
+footer{
+  border-top:1px solid #E0DCCF;
+  margin-top:2.5rem;
+  padding:1.4rem 0 .6rem;
+  font-size:.75rem;
+  color:#87857C;
+  text-align:center;
+}
+footer p{margin-bottom:.35rem}
+footer a{color:#C15F3C;text-decoration:none}
+footer a:hover{text-decoration:underline}
+.oss a{margin:0 .25rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>东云资讯</h1>
+  <p>更新于 {{ updated_at }}（北京时间）· 每日 06:30 自动更新</p>
+  <p>信息采集：程序抓取 RSS/API/官方列表页{% if models_used %} · 摘要与速览模型：{{ models_used|join('、') }}{% endif %}</p>
+</header>
+<nav class="tabs">
+  {% for section in sections %}
+  <button class="tab" data-name="{{ section.name }}">{{ section.name }}<span class="count">{{ section.count }}</span></button>
+  {% endfor %}
+  <div id="loading-status" class="loading-status" role="status" aria-live="polite">
+    <span id="loading-text">正在加载内容…</span>
+    <span class="loading-track" aria-hidden="true"></span>
+  </div>
+</nav>
+<main aria-busy="true">
+  <div id="date-bg" class="date-bg" aria-hidden="true" hidden><span></span></div>
+  <div class="content">
+    <div class="feed-column"><div id="days"></div><div id="cve-panel" class="cve-panel" hidden></div></div>
+    <nav id="timeline" class="timeline" aria-label="日期"></nav>
+  </div>
+  <a id="luoxiaohei-banner" class="lxh-banner" hidden target="_blank" rel="noopener"></a>
+  <div id="calendar" class="calendar" hidden></div>
+  <p id="empty" class="empty" hidden>本期无数据</p>
+  <div id="sentinel"></div>
+</main>
+<noscript><p class="empty">需要启用 JavaScript 才能浏览条目列表</p></noscript>
+<footer>
+  <p>© 2026 东云研究所 · 保留所有权利</p>
+  <p>东云资讯 {{ version }} · 内容由程序自动采集与 AI 生成，仅供参考，请以原文为准</p>
+  <p class="beian">
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">桂ICP备19006338号-1</a> ·
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">桂ICP备19006338号-3</a>
+  </p>
+  <p class="oss">开源致谢：
+    <a href="https://github.com/caddyserver/caddy" target="_blank" rel="noopener">Caddy</a> ·
+    <a href="https://github.com/pallets/jinja" target="_blank" rel="noopener">Jinja2</a> ·
+    <a href="https://github.com/kurtmckee/feedparser" target="_blank" rel="noopener">feedparser</a> ·
+    <a href="https://github.com/python-pillow/Pillow" target="_blank" rel="noopener">Pillow</a> ·
+    <a href="https://github.com/openai/openai-python" target="_blank" rel="noopener">openai-python</a>
+  </p>
+</footer>
+</div>
+<script>
+window.addEventListener('error', function () {
+  var status = document.getElementById('loading-status');
+  var text = document.getElementById('loading-text');
+  if (status) {
+    status.hidden = false;
+    status.classList.add('failed');
+  }
+  if (text) text.textContent = '加载失败，请刷新重试';
+  var main = document.querySelector('main');
+  if (main) main.setAttribute('aria-busy', 'false');
+}, { once: true });
+</script>
+<script id="data" type="application/json">{{ sections_json|safe }}</script>
+<script>
+(function () {
+  try {
+  var sections = JSON.parse(document.getElementById('data').textContent);
+  var daysRoot = document.getElementById('days');
+  var timeline = document.getElementById('timeline');
+  var contentEl = document.querySelector('.content');
+  var calendarRoot = document.getElementById('calendar');
+  var cveRoot = document.getElementById('cve-panel');
+  var lxhBanner = document.getElementById('luoxiaohei-banner');
+  var sentinel = document.getElementById('sentinel');
+  var emptyMsg = document.getElementById('empty');
+  var dateBg = document.getElementById('date-bg');
+  var dateBgText = dateBg ? dateBg.querySelector('span') : null;
+  var tabsEl = document.querySelector('.tabs');
+  var mainEl = document.querySelector('main');
+  var loadingStatus = document.getElementById('loading-status');
+  var loadingText = document.getElementById('loading-text');
+  var activeSection = null;
+  var activeDayIndex = 0;
+  var shown = 0;
+  var scrollPositions = {};
+  var observer = null;
+  var dateBgFrame = 0;
+  var currentBgDay = '';
+  var renderToken = 0;
+  var activeDateLock = '';
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function updateStickyMetrics() {
+    if (!tabsEl) return;
+    document.documentElement.style.setProperty('--tabs-height', tabsEl.getBoundingClientRect().height + 'px');
+  }
+
+  function setLoading(isLoading, message) {
+    if (!loadingStatus || !mainEl) return;
+    loadingStatus.classList.remove('failed');
+    loadingStatus.hidden = !isLoading;
+    if (message) loadingText.textContent = message;
+    mainEl.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    document.documentElement.style.setProperty('--loading-offset', isLoading ? '1.5rem' : '0px');
+  }
+
+  function batchSize() {
+    return window.matchMedia('(min-width: 760px)').matches ? 8 : 4;
+  }
+
+  function hasValue(value) {
+    return value !== undefined && value !== null && value !== '';
+  }
+
+  function compactNumber(value) {
+    if (!hasValue(value)) return '';
+    var num = Number(value);
+    if (!Number.isFinite(num)) return '';
+    if (num >= 1000000) return (num / 1000000).toFixed(num >= 10000000 ? 0 : 1).replace(/\.0$/, '') + 'm';
+    if (num >= 1000) return (num / 1000).toFixed(num >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k';
+    return String(num);
+  }
+
+  function shortDate(value) {
+    if (!value) return '';
+    var match = String(value).match(/^\d{4}-(\d{2})-(\d{2})/);
+    if (match) return match[1] + '-' + match[2];
+    var date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  }
+
+  function repoMetaText(item) {
+    var parts = [];
+    var stars = compactNumber(item.github_stars);
+    if (stars) parts.push('★ ' + stars);
+    var issues = compactNumber(item.github_open_issues);
+    if (issues) parts.push('Issues ' + issues);
+    var branches = compactNumber(item.github_branch_count);
+    if (branches) parts.push('Branches ' + branches);
+    var releaseDate = shortDate(item.github_latest_release_at);
+    if (releaseDate) parts.push('Release ' + releaseDate);
+    var createdDate = shortDate(item.github_created_at);
+    if (createdDate) parts.push('Created ' + createdDate);
+    return parts.join(' · ');
+  }
+
+  function makeCard(item, day) {
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = item.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.dataset.date = day.date;
+    a.dataset.day = day.date.slice(8, 10);
+    var title = document.createElement('div');
+    title.className = 'card-title';
+    var h3 = document.createElement('h3');
+    h3.textContent = item.title;
+    title.appendChild(h3);
+    if (item.title_zh) {
+      var zh = document.createElement('div');
+      zh.className = 'title-zh';
+      zh.textContent = item.title_zh;
+      title.appendChild(zh);
+    }
+    a.appendChild(title);
+    var main = document.createElement('div');
+    main.className = 'card-main';
+    if (item.image) {
+      var img = document.createElement('img');
+      img.src = item.image;
+      img.loading = 'lazy';
+      img.alt = '';
+      main.appendChild(img);
+    }
+    var body = document.createElement('div');
+    body.className = 'card-body';
+    var p = document.createElement('p');
+    p.textContent = item.summary;
+    var meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = item.source + (item.published_at ? ' · ' + item.published_at : '');
+    body.appendChild(p);
+    body.appendChild(meta);
+    var repoMeta = repoMetaText(item);
+    if (repoMeta) {
+      var repo = document.createElement('span');
+      repo.className = 'repo-meta';
+      repo.textContent = repoMeta;
+      body.appendChild(repo);
+    }
+    main.appendChild(body);
+    a.appendChild(main);
+    return a;
+  }
+
+  function isoWeekday(date) {
+    var day = date.getDay();
+    return day === 0 ? 7 : day;
+  }
+
+  function makeCalendarEntry(item) {
+    var a = document.createElement('a');
+    a.className = 'cal-anime' + (item.delay ? ' cal-anime-delay' : '');
+    a.href = item.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    if (item.image) {
+      var img = document.createElement('img');
+      img.src = item.image;
+      img.loading = 'lazy';
+      img.alt = '';
+      a.appendChild(img);
+    }
+    var span = document.createElement('span');
+    span.textContent = item.title + (item.delay && item.delay_reason ? '（' + item.delay_reason + '）' : '');
+    a.appendChild(span);
+    return a;
+  }
+
+  function renderLuoxiaoheiBanner(section) {
+    if (!lxhBanner) return;
+    var lxh = section.luoxiaohei;
+    if (!lxh || !lxh.url) {
+      lxhBanner.hidden = true;
+      lxhBanner.textContent = '';
+      return;
+    }
+    lxhBanner.textContent = '';
+    lxhBanner.href = lxh.url;
+    if (lxh.image) {
+      var img = document.createElement('img');
+      img.src = lxh.image;
+      img.loading = 'lazy';
+      img.alt = '';
+      lxhBanner.appendChild(img);
+    }
+    var body = document.createElement('div');
+    body.className = 'lxh-banner-body';
+    var title = document.createElement('div');
+    title.className = 'lxh-banner-title';
+    title.appendChild(document.createTextNode('罗小黑战记 · '));
+    var ep = document.createElement('span');
+    ep.className = 'lxh-ep';
+    ep.textContent = '第' + lxh.episode_number + '话';
+    title.appendChild(ep);
+    body.appendChild(title);
+    var meta = document.createElement('div');
+    meta.className = 'lxh-banner-meta';
+    meta.textContent = '更新于 ' + lxh.pub_date + (lxh.episode_title ? ' · ' + lxh.episode_title : '');
+    body.appendChild(meta);
+    lxhBanner.appendChild(body);
+    lxhBanner.hidden = false;
+  }
+
+  function renderCalendarGrid(section) {
+    calendarRoot.textContent = '';
+    var today = section.today ? new Date(section.today + 'T00:00:00+08:00') : new Date();
+    var year = today.getFullYear();
+    var month = today.getMonth();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var startOffset = isoWeekday(new Date(year, month, 1)) - 1;
+    var totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+    var head = document.createElement('div');
+    head.className = 'cal-head';
+    var weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
+    for (var w = 0; w < 7; w++) {
+      var wd = document.createElement('div');
+      wd.textContent = '周' + weekdayLabels[w];
+      head.appendChild(wd);
+    }
+    calendarRoot.appendChild(head);
+
+    var row = null;
+    var weekdayItems = section.weekday_items || {};
+    for (var i = 0; i < totalCells; i++) {
+      if (i % 7 === 0) {
+        row = document.createElement('div');
+        row.className = 'cal-row';
+        calendarRoot.appendChild(row);
+      }
+      var dayNum = i - startOffset + 1;
+      var isOutside = dayNum < 1 || dayNum > daysInMonth;
+      var isToday = !isOutside && dayNum === today.getDate();
+      var cellDate = new Date(year, month, dayNum);
+      var cell = document.createElement('div');
+      cell.className = 'cal-cell' + (isOutside ? ' cal-cell-out' : '') + (isToday ? ' cal-cell-today' : '');
+      var dateLabel = document.createElement('div');
+      dateLabel.className = 'cal-date';
+      dateLabel.textContent = cellDate.getDate();
+      cell.appendChild(dateLabel);
+      var items = weekdayItems[String(isoWeekday(cellDate))] || [];
+      for (var k = 0; k < items.length; k++) cell.appendChild(makeCalendarEntry(items[k]));
+      row.appendChild(cell);
+    }
+  }
+
+  function factValue(value) {
+    if (!hasValue(value)) return '';
+    if (typeof value === 'object') return value.identifier || value.name || value.version || JSON.stringify(value);
+    return String(value);
+  }
+
+  function safeHttpUrl(value) {
+    try {
+      var parsed = new URL(String(value || ''), window.location.href);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : '';
+    } catch (_error) { return ''; }
+  }
+
+  function severityText(cve) {
+    var score = hasValue(cve.cvss) ? Number(cve.cvss) : null;
+    var vendor = String(cve.severity || '').toLowerCase();
+    var label = '';
+    if ((score !== null && score >= 9) || vendor === 'critical') label = 'Critical';
+    else if ((score !== null && score >= 7) || vendor === 'high' || vendor === 'important') label = 'High';
+    return label ? label + (score !== null ? ' · CVSS ' + score : '') : '严重度待确认';
+  }
+
+  function versionRangeText(item) {
+    if (!item || typeof item !== 'object') return factValue(item);
+    var prefix = [item.ecosystem, item.product].filter(Boolean).join(' / ');
+    var range = item.range || '';
+    if (!range && item.introduced) range = '从 ' + item.introduced + ' 起';
+    if (item.fixed) range += (range ? '，' : '') + '在 ' + item.fixed + ' 前';
+    else if (item.last_affected) range += (range ? '，' : '') + '截至 ' + item.last_affected;
+    return [prefix, range, item.source ? '来源：' + item.source : ''].filter(Boolean).join(' · ');
+  }
+
+  function rankedReferences(cve) {
+    var priority = {'Red Hat': 1, 'Ubuntu OSV': 1, 'Debian': 1, 'SUSE CSAF/VEX': 1,
+      'Microsoft MSRC': 1, 'GitHub Advisory': 2, 'OSV': 3, 'NVD': 4};
+    return (cve.references || []).filter(function (ref) { return ref && safeHttpUrl(ref.url); })
+      .sort(function (a, b) { return (priority[a.source] || 5) - (priority[b.source] || 5); })
+      .filter(function (ref, index, all) {
+        return all.findIndex(function (other) { return safeHttpUrl(other.url) === safeHttpUrl(ref.url); }) === index;
+      });
+  }
+
+  function renderCve(section) {
+    cveRoot.textContent = '';
+    var status = section.status || {};
+    var info = document.createElement('div');
+    info.className = 'cve-status' + (status.degraded || status.proxy === 'unavailable' ? ' degraded' : '');
+    var successes = status.successful_sources || [];
+    var failures = Object.keys(status.failed_sources || {});
+    info.textContent = 'CVE 情报更新时间：' + (status.last_success_at || '沿用上一版') +
+      ' · 本次使用 ' + successes.length + '/11 个来源' +
+      ' · 代理：' + (status.proxy === 'unavailable' ? '故障（未直连回退）' : 'mihomo 正常') +
+      (failures.length ? ' · 缺失：' + failures.join('、') : '');
+    cveRoot.appendChild(info);
+    var days = section.days || [];
+    for (var d = 0; d < days.length; d++) {
+      var day = days[d];
+      var block = document.createElement('section');
+      block.className = 'date-block'; block.id = 'day-' + day.date; block.dataset.date = day.date;
+      var dayHead = document.createElement('div'); dayHead.className = 'date-head';
+      var dayTitle = document.createElement('h2'); dayTitle.textContent = day.label; dayHead.appendChild(dayTitle); block.appendChild(dayHead);
+      var serviceList = document.createElement('div'); serviceList.className = 'cve-service-list';
+      var services = day.services || [];
+      for (var i = 0; i < services.length; i++) {
+        var service = services[i];
+      var card = document.createElement('article');
+      card.className = 'cve-card';
+      var title = document.createElement('h2');
+      title.textContent = service.title;
+      card.appendChild(title);
+      var purpose = document.createElement('div'); purpose.className = 'cve-purpose';
+      purpose.textContent = (service.service_profile && service.service_profile.description) || service.service_description || '服务用途、解决的问题和首次发布时间待确认。'; card.appendChild(purpose);
+      var cves = service.cves || [];
+      for (var j = 0; j < cves.length; j++) {
+        var cve = cves[j];
+        var row = document.createElement('div');
+        row.className = 'cve-row';
+        var refs = rankedReferences(cve);
+        var primaryUrl = refs.length ? safeHttpUrl(refs[0].url) : 'https://nvd.nist.gov/vuln/detail/' + encodeURIComponent(cve.id);
+        var overlay = document.createElement('a'); overlay.className = 'cve-row-link'; overlay.href = primaryUrl;
+        overlay.target = '_blank'; overlay.rel = 'noopener'; overlay.setAttribute('aria-label', cve.id + ' 公告'); row.appendChild(overlay);
+        var head = document.createElement('div'); head.className = 'cve-head';
+        var id = document.createElement('span'); id.className = 'cve-id'; id.textContent = cve.id; head.appendChild(id);
+        var severity = document.createElement('span'); severity.className = 'cve-severity'; severity.textContent = severityText(cve); head.appendChild(severity); row.appendChild(head);
+        var summary = document.createElement('div'); summary.className = 'cve-summary';
+        summary.textContent = cve.impact_summary || '漏洞影响待确认'; row.appendChild(summary);
+        var details = document.createElement('details'); details.className = 'cve-details';
+        var detailSummary = document.createElement('summary'); detailSummary.textContent = '详情'; details.appendChild(detailSummary);
+        var body = document.createElement('div'); body.className = 'cve-detail-body';
+        var ranges = cve.version_ranges || [];
+        var affected = document.createElement('div'); affected.textContent = '受影响版本：' + (ranges.length ? ranges.map(versionRangeText).join('；') : '待确认'); body.appendChild(affected);
+        var fixed = document.createElement('div'); fixed.textContent = '修复版本：' + ((cve.fixed_versions || []).length ? cve.fixed_versions.map(factValue).join('、') : '待确认'); body.appendChild(fixed);
+        var risk = document.createElement('div');
+        risk.textContent = '利用状态：' + (cve.kev ? '已列入 CISA KEV' : '未列入 CISA KEV') + (hasValue(cve.epss) ? ' · EPSS ' + Number(cve.epss).toFixed(2) + '%' : ' · EPSS 待确认'); body.appendChild(risk);
+        var updated = document.createElement('div'); updated.textContent = '更新时间：' + (cve.modified || '待确认'); body.appendChild(updated);
+        var links = document.createElement('div'); links.className = 'cve-links';
+        for (var k = 0; k < Math.min(refs.length, 3); k++) {
+          var link = document.createElement('a'); link.href = safeHttpUrl(refs[k].url); link.target = '_blank'; link.rel = 'noopener'; link.textContent = refs[k].source || '官方公告'; links.appendChild(link);
+        }
+        body.appendChild(links); details.appendChild(body); row.appendChild(details); card.appendChild(row);
+      }
+        serviceList.appendChild(card);
+      }
+      block.appendChild(serviceList);
+      cveRoot.appendChild(block);
+    }
+  }
+
+  var LOOKAHEAD_PX = 2200;
+
+  function sentinelNeedsMore() {
+    if (sentinel.hidden) return false;
+    var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    return sentinel.getBoundingClientRect().top <= viewportHeight + LOOKAHEAD_PX;
+  }
+
+  function appendBatch() {
+    if (!activeSection || !activeSection.days) return false;
+    var remaining = batchSize();
+    var appended = false;
+    while (activeDayIndex < activeSection.days.length && remaining > 0) {
+      var day = activeSection.days[activeDayIndex];
+      var grid = document.querySelector('[data-date-grid="' + day.date + '"]');
+      var entries = day.entries || [];
+      var start = shown;
+      var next = entries.slice(start, start + remaining);
+      for (var i = 0; i < next.length; i++) grid.appendChild(makeCard(next[i], day));
+      if (next.length) appended = true;
+      shown += next.length;
+      remaining -= next.length;
+      if (shown >= entries.length) {
+        activeDayIndex += 1;
+        shown = 0;
+        if (!next.length) continue;
+      }
+      if (!next.length) break;
+    }
+    sentinel.hidden = activeDayIndex >= activeSection.days.length;
+    emptyMsg.hidden = activeSection.days.length > 0;
+    requestDateBackdropUpdate();
+    return appended;
+  }
+
+  function nextFrame(callback) {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(callback);
+    });
+  }
+
+  function stickyTargetTop(includeLoading) {
+    var tabsBottom = tabsEl ? tabsEl.getBoundingClientRect().bottom : 0;
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      var timelineBottom = timeline.getBoundingClientRect().bottom;
+      return Math.max(tabsBottom, timelineBottom) + 12;
+    }
+    return Math.max(0, tabsBottom) + (includeLoading ? 32 : 12);
+  }
+
+  function positionDateBlock(block, includeLoading) {
+    if (!block) return;
+    var delta = block.getBoundingClientRect().top - stickyTargetTop(includeLoading);
+    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+  }
+
+  function setActiveTimelineDate(date) {
+    var buttons = timeline.querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].classList.toggle('active', buttons[i].dataset.date === date);
+    }
+  }
+
+  function scheduleLookahead(token) {
+    window.requestAnimationFrame(function topUp() {
+      if (token !== renderToken || activeDateLock || !sentinelNeedsMore()) return;
+      appendBatch();
+      window.requestAnimationFrame(topUp);
+    });
+  }
+
+  function navigateToDate(date) {
+    if (!activeSection) return;
+    var scope = activeSection.layout === 'cve' ? cveRoot : daysRoot;
+    var block = scope.querySelector('[data-date="' + date + '"]');
+    if (!block) return;
+
+    setActiveTimelineDate(date);
+    var token = ++renderToken;
+    if (activeSection.layout === 'cve') {
+      activeDateLock = '';
+      sentinel.classList.remove('anchor-reserve');
+      positionDateBlock(block, false);
+      return;
+    }
+
+    var targetIndex = activeSection.days.findIndex(function (day) { return day.date === date; });
+    if (targetIndex < 0 || activeDayIndex > targetIndex) {
+      activeDateLock = '';
+      sentinel.classList.remove('anchor-reserve');
+      positionDateBlock(block, false);
+      scheduleLookahead(token);
+      return;
+    }
+
+    activeDateLock = date;
+    sentinel.classList.add('anchor-reserve');
+    document.documentElement.style.overflowAnchor = 'none';
+    setLoading(true, '正在加载 ' + block.querySelector('h2').textContent + '…');
+    positionDateBlock(block, true);
+
+    window.requestAnimationFrame(function prepareDateAnchor() {
+      if (token !== renderToken) return;
+      positionDateBlock(block, true);
+      window.requestAnimationFrame(renderNextBatch);
+    });
+
+    function renderNextBatch() {
+      if (token !== renderToken) return;
+      if (activeDayIndex <= targetIndex) {
+        appendBatch();
+        if (activeDateLock === date) positionDateBlock(block, true);
+        window.requestAnimationFrame(renderNextBatch);
+        return;
+      }
+      activeDateLock = '';
+      sentinel.classList.remove('anchor-reserve');
+      document.documentElement.style.overflowAnchor = '';
+      setLoading(false);
+      scheduleLookahead(token);
+    }
+  }
+
+  function makeDateBlock(day) {
+    var block = document.createElement('section');
+    block.className = 'date-block';
+    block.id = 'day-' + day.date;
+    block.dataset.date = day.date;
+    var head = document.createElement('div');
+    head.className = 'date-head';
+    var h2 = document.createElement('h2');
+    h2.textContent = day.label;
+    head.appendChild(h2);
+    if (day.models && day.models.length) {
+      var model = document.createElement('div');
+      model.className = 'model-line';
+      model.textContent = '摘要与速览模型：' + day.models.join('、');
+      head.appendChild(model);
+    }
+    block.appendChild(head);
+    if (day.digest_html) {
+      var digest = document.createElement('section');
+      digest.className = 'digest';
+      digest.innerHTML = '<h2>今日速览</h2><p>' + day.digest_html + '</p>';
+      block.appendChild(digest);
+    }
+    var grid = document.createElement('div');
+    grid.className = 'grid';
+    grid.dataset.dateGrid = day.date;
+    block.appendChild(grid);
+    return block;
+  }
+
+  function renderTimeline(section) {
+    timeline.textContent = '';
+    for (var i = 0; i < section.days.length; i++) {
+      var day = section.days[i];
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = day.label;
+      btn.dataset.date = day.date;
+      btn.addEventListener('click', function () {
+        navigateToDate(this.dataset.date);
+      });
+      timeline.appendChild(btn);
+    }
+  }
+
+  function watchDates() {
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver(function (entries) {
+      if (activeDateLock) return;
+      var best = null;
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].isIntersecting && (!best || entries[i].boundingClientRect.top < best.boundingClientRect.top)) {
+          best = entries[i];
+        }
+      }
+      if (!best) return;
+      var buttons = timeline.querySelectorAll('button');
+      for (var j = 0; j < buttons.length; j++) {
+        buttons[j].classList.toggle('active', buttons[j].dataset.date === best.target.dataset.date);
+      }
+    }, { rootMargin: '-20% 0px -65% 0px', threshold: 0 });
+    var scope = activeSection && activeSection.layout === 'cve' ? cveRoot : daysRoot;
+    var blocks = scope.querySelectorAll('.date-block');
+    for (var k = 0; k < blocks.length; k++) observer.observe(blocks[k]);
+    var first = timeline.querySelector('button');
+    if (first) first.classList.add('active');
+  }
+
+  function setDateBackdrop(day) {
+    if (!dateBg || !dateBgText) return;
+    if (!day) {
+      currentBgDay = '';
+      dateBg.hidden = true;
+      dateBgText.textContent = '';
+      return;
+    }
+    dateBg.hidden = false;
+    if (day === currentBgDay) return;
+    if (currentBgDay && !reduceMotion) {
+      dateBg.dataset.prev = currentBgDay;
+      dateBg.classList.remove('turning');
+      void dateBg.offsetWidth;
+      dateBg.classList.add('turning');
+      window.setTimeout(function () {
+        dateBg.classList.remove('turning');
+      }, 380);
+    }
+    currentBgDay = day;
+    dateBgText.textContent = day;
+  }
+
+  function updateDateBackdrop() {
+    dateBgFrame = 0;
+    var cards = document.querySelectorAll('.card[data-date]');
+    var selected = null;
+    var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    for (var i = 0; i < cards.length; i++) {
+      var rect = cards[i].getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= viewportHeight) continue;
+      selected = cards[i];
+      break;
+    }
+    if (!selected) {
+      setDateBackdrop('');
+      return;
+    }
+    setDateBackdrop(selected.dataset.day);
+    if (dateBg && !reduceMotion) {
+      var topProgress = Math.max(-1, Math.min(1, selected.getBoundingClientRect().top / Math.max(viewportHeight, 1)));
+      var shift = Math.round(topProgress * 18);
+      dateBg.style.setProperty('--date-shift', shift + 'px');
+    }
+  }
+
+  function requestDateBackdropUpdate() {
+    if (dateBgFrame) return;
+    dateBgFrame = window.requestAnimationFrame(updateDateBackdrop);
+  }
+
+  function selectTab(btn, initialLoad) {
+    var token = ++renderToken;
+    activeDateLock = '';
+    sentinel.classList.remove('anchor-reserve');
+    document.documentElement.style.overflowAnchor = '';
+    if (activeSection) scrollPositions[activeSection.name] = window.scrollY;
+    var tabs = document.querySelectorAll('.tab');
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('active', tabs[i] === btn);
+    var section = null;
+    for (var j = 0; j < sections.length; j++) {
+      if (sections[j].name === btn.dataset.name) { section = sections[j]; break; }
+    }
+    activeSection = section || { name: '', days: [] };
+
+    if (activeSection.layout === 'calendar') {
+      contentEl.hidden = true;
+      sentinel.hidden = true;
+      emptyMsg.hidden = true;
+      if (dateBg) dateBg.hidden = true;
+      calendarRoot.hidden = false;
+      cveRoot.hidden = true;
+      renderLuoxiaoheiBanner(activeSection);
+      renderCalendarGrid(activeSection);
+      window.scrollTo(0, scrollPositions[activeSection.name] || 0);
+      if (initialLoad) nextFrame(function () { setLoading(false); });
+      return;
+    }
+    if (activeSection.layout === 'cve') {
+      contentEl.hidden = false; daysRoot.hidden = true; calendarRoot.hidden = true; cveRoot.hidden = false;
+      sentinel.hidden = true; emptyMsg.hidden = (activeSection.days || []).length > 0;
+      if (dateBg) dateBg.hidden = true;
+      if (lxhBanner) lxhBanner.hidden = true;
+      renderCve(activeSection);
+      renderTimeline(activeSection);
+      watchDates();
+      window.scrollTo(0, scrollPositions[activeSection.name] || 0);
+      if (initialLoad) nextFrame(function () { setLoading(false); });
+      return;
+    }
+    contentEl.hidden = false;
+    daysRoot.hidden = false;
+    calendarRoot.hidden = true;
+    cveRoot.hidden = true;
+    if (lxhBanner) lxhBanner.hidden = true;
+
+    activeDayIndex = 0;
+    shown = 0;
+    daysRoot.textContent = '';
+    renderTimeline(activeSection);
+    for (var d = 0; d < activeSection.days.length; d++) daysRoot.appendChild(makeDateBlock(activeSection.days[d]));
+    appendBatch();
+    watchDates();
+    window.scrollTo(0, scrollPositions[activeSection.name] || 0);
+    requestDateBackdropUpdate();
+    scheduleLookahead(token);
+    if (initialLoad) nextFrame(function () { setLoading(false); });
+  }
+
+  new IntersectionObserver(function (es) {
+    if (es[0].isIntersecting && !sentinel.hidden && !activeDateLock) {
+      appendBatch();
+      scheduleLookahead(renderToken);
+    }
+  }, { rootMargin: LOOKAHEAD_PX + 'px 0px' }).observe(sentinel);
+
+  var tabs = document.querySelectorAll('.tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener('click', function () { selectTab(this); });
+  }
+  var releaseDateLock = function () {
+    activeDateLock = '';
+    document.documentElement.style.overflowAnchor = '';
+  };
+  window.addEventListener('wheel', releaseDateLock, { passive: true });
+  window.addEventListener('touchstart', releaseDateLock, { passive: true });
+  window.addEventListener('keydown', function (event) {
+    var keys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '];
+    if (keys.indexOf(event.key) !== -1) releaseDateLock();
+  });
+  window.addEventListener('scroll', requestDateBackdropUpdate, { passive: true });
+  window.addEventListener('resize', function () {
+    updateStickyMetrics();
+    requestDateBackdropUpdate();
+  });
+  if (window.ResizeObserver && tabsEl) {
+    new ResizeObserver(updateStickyMetrics).observe(tabsEl);
+  }
+  updateStickyMetrics();
+  var initial = document.querySelector('.tab[data-name="AI"]') || tabs[0];
+  if (initial) selectTab(initial, true);
+  else setLoading(false);
+  } catch (error) {
+    var failedStatus = document.getElementById('loading-status');
+    var failedText = document.getElementById('loading-text');
+    if (failedStatus) {
+      failedStatus.hidden = false;
+      failedStatus.classList.add('failed');
+    }
+    if (failedText) failedText.textContent = '加载失败，请刷新重试';
+    var failedMain = document.querySelector('main');
+    if (failedMain) failedMain.setAttribute('aria-busy', 'false');
+    window.console.error(error);
+  }
+})();
+</script>
+</body>
+</html>

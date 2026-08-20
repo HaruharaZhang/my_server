@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>运行状态 · 东云研究所</title>
+  <link rel="stylesheet" href="assets/status.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">DONGYUN LAB · OPERATIONS</p><h1>运行状态</h1><p>公开、只读且经过脱敏的服务运行概览</p></header>
+    <section id="notice" class="notice">正在读取最新状态…</section>
+    <section class="hero card"><div><span id="overall-dot" class="dot unknown"></span><h2 id="overall">暂无数据</h2><p id="freshness">等待采集结果</p></div><div class="stamp"><span>最近更新</span><time id="updated">—</time></div></section>
+    <section><h2>系统概览</h2><div id="metrics" class="metric-grid"></div></section>
+    <section><div class="section-head"><h2>过去 7 天</h2><span>7 天</span></div><div class="charts"><article class="card"><h3>资源使用率</h3><div class="chart-wrap"><canvas id="resource-chart" height="210"></canvas><div id="resource-tooltip" class="chart-tooltip" hidden></div></div><div class="legend"><i class="cpu"></i>CPU <i class="memory"></i>内存 <i class="disk"></i>磁盘</div></article><article class="card"><h3>网络吞吐（五分钟峰值）</h3><div class="chart-wrap"><canvas id="network-chart" height="210"></canvas><div id="network-tooltip" class="chart-tooltip" hidden></div></div><div class="legend"><i class="rx"></i>五分钟接收峰值 <i class="tx"></i>五分钟发送峰值</div></article></div></section>
+    <section><h2>核心服务</h2><div id="services" class="list-grid"></div></section>
+    <section><h2>托管站点</h2><div class="list-grid"><a class="card-link" href="/xiaoyu/" aria-label="打开 Xiaoyu · VIRTUAL AFTERIMAGE"><article class="card item"><div class="item-head"><strong>Xiaoyu · VIRTUAL AFTERIMAGE</strong><span class="badge healthy">访问 ↗</span></div><dl><dt>内容</dt><dd>VRChat Photography</dd></dl></article></a></div></section>
+    <section class="split"><div><h2>新闻流水线</h2><a class="card-link" href="/news/" aria-label="打开东云资讯"><article id="news" class="card details"></article></a></div><div><h2>视频中继</h2><a class="card-link" href="/youtube/history/" aria-label="打开播放历史"><article id="youtube" class="card details"></article></a></div></section>
+    <section><h2>域名与证书</h2><div id="domains" class="list-grid"></div></section>
+    <section class="split"><div><h2>计划任务</h2><div id="timers" class="stack"></div></div><div><h2>存储与安全</h2><article id="security" class="card details"></article><div id="storage" class="stack compact"></div></div></section>
+    <section><h2>最近事件</h2><div id="events" class="stack"></div></section>
+    <footer>
+      <p>© 2026 东云研究所 · 保留所有权利</p>
+      <p>运行状态 <span id="version">—</span> · 数据由程序自动采集并脱敏，仅供参考</p>
+      <p class="beian"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">桂ICP备19006338号-1</a> · <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">桂ICP备19006338号-3</a></p>
+      <p class="oss">开源致谢：<a href="https://github.com/caddyserver/caddy" target="_blank" rel="noopener">Caddy</a> · <a href="https://www.python.org/" target="_blank" rel="noopener">Python</a></p>
+    </footer>
+  </main>
+  <noscript><div class="noscript">需要启用 JavaScript 才能读取静态状态数据。</div></noscript>
+  <script src="assets/status.js?v=20260717-proxy-total" defer></script>
+</body>
+</html>

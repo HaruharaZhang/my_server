@@ -1,0 +1,25 @@
+{
+	servers {
+		protocols h1
+	}
+}
+
+dyyjs.com, dongyunyanjiusuo.com {
+	handle /youtube {
+		reverse_proxy 127.0.0.1:8090
+	}
+	handle /bilibili {
+		reverse_proxy 127.0.0.1:8091
+	}
+	redir /horizon /horizon/ 308
+	handle_path /horizon/* {
+		root * /var/www/dyyjs/horizon/current
+		encode gzip
+		file_server
+	}
+	handle {
+		root * /var/www/dyyjs
+		encode gzip
+		file_server
+	}
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=东云研究所五秒公网流量采样器
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/dyyjs-status/app/sampler.py --output /opt/dyyjs-status/state/network-peaks.json
+User=root
+Group=root
+Nice=15
+Restart=always
+RestartSec=3
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths=/opt/dyyjs-status/state
+
+[Install]
+WantedBy=multi-user.target

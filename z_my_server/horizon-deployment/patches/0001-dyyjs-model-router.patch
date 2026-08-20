@@ -1,0 +1,480 @@
+diff --git a/src/ai/analyzer.py b/src/ai/analyzer.py
+index 5f74a2f..6ca5f5f 100644
+--- a/src/ai/analyzer.py
++++ b/src/ai/analyzer.py
+@@ -6,7 +6,6 @@ from typing import List, Optional
+ from pydantic import ValidationError
+ from rich.console import Console
+ from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, MofNCompleteColumn
+-from tenacity import retry, stop_after_attempt, wait_exponential
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -92,10 +91,6 @@ class ContentAnalyzer:
+ 
+         return analyzed_items
+ 
+-    @retry(
+-        stop=stop_after_attempt(3),
+-        wait=wait_exponential(min=2, max=10)
+-    )
+     async def _analyze_item(self, item: ContentItem) -> None:
+         """Analyze a single content item.
+ 
+diff --git a/src/ai/client.py b/src/ai/client.py
+index 8e65558..2f7802f 100644
+--- a/src/ai/client.py
++++ b/src/ai/client.py
+@@ -1,9 +1,11 @@
+ """AI client abstraction supporting multiple providers."""
+ 
++import asyncio
+ import os
+ import re
+ from abc import ABC, abstractmethod
+ from typing import Any, Dict, List, Optional
++import httpx
+ from openai import AsyncAzureOpenAI, AsyncOpenAI
+ from anthropic import AsyncAnthropic
+ from google import genai
+@@ -206,7 +208,16 @@ class OpenAIClient(AIClient):
+         fallback = "no_key" if config.provider == AIProvider.OLLAMA else None
+         api_key = _resolve_api_key(config, fallback=fallback)
+ 
+-        kwargs = {"api_key": api_key}
++        self._http_client = httpx.AsyncClient(
++            timeout=httpx.Timeout(180.0),
++            trust_env=False,
++        )
++        kwargs = {
++            "api_key": api_key,
++            "http_client": self._http_client,
++            "max_retries": 0,
++            "timeout": 180.0,
++        }
+         base_url = self._resolve_base_url(config)
+         if base_url:
+             kwargs["base_url"] = base_url
+@@ -216,6 +227,14 @@ class OpenAIClient(AIClient):
+         self.temperature = config.temperature
+         self.max_tokens = config.max_tokens
+         self.provider = config.provider.value
++        self._routing_enabled = config.model_priority is not None
++        self._model_priority = list(config.model_priority or [config.model])
++        self._available_models: Optional[List[str]] = (
++            None if config.model_priority else [config.model]
++        )
++        self._disabled_models: set[str] = set()
++        self._models_used: List[str] = []
++        self._model_init_lock = asyncio.Lock()
+         # Some newer models (e.g. Claude Opus 4.7 on Bedrock Converse) reject
+         # `temperature`. We learn this on first 400 and stop sending it.
+         self._supports_temperature = True
+@@ -264,6 +283,41 @@ class OpenAIClient(AIClient):
+         if self.provider in self._TEMP_CLAMP and temperature <= 0:
+             temperature = 0.01
+ 
++        if not self._routing_enabled:
++            return await self._complete_once(system, user, temperature, max_tokens)
++
++        if config_models := await self._get_available_models():
++            last_error: Optional[Exception] = None
++            for model in config_models:
++                if model in self._disabled_models:
++                    continue
++                for attempt in range(2):
++                    self.model = model
++                    try:
++                        result = await self._complete_once(
++                            system, user, temperature, max_tokens
++                        )
++                        if model not in self._models_used:
++                            self._models_used.append(model)
++                        return result
++                    except Exception as exc:
++                        last_error = exc
++                        if self._is_throttled(exc):
++                            self._disabled_models.add(model)
++                            logger.warning("Model %s disabled for this run: %s", model, exc)
++                            break
++                        if attempt == 0:
++                            logger.warning("Model %s failed, retrying once: %s", model, exc)
++            raise RuntimeError(f"All configured models failed. Last error: {last_error}")
++        raise RuntimeError("No configured AI models are available")
++
++    async def _complete_once(
++        self,
++        system: str,
++        user: str,
++        temperature: Optional[float],
++        max_tokens: Optional[int],
++    ) -> str:
+         try:
+             response = await self._do_request(
+                 system=system,
+@@ -305,6 +359,44 @@ class OpenAIClient(AIClient):
+             )
+         return response.choices[0].message.content
+ 
++    async def _get_available_models(self) -> List[str]:
++        if self._available_models is not None:
++            return self._available_models
++        async with self._model_init_lock:
++            if self._available_models is not None:
++                return self._available_models
++            try:
++                response = await self.client.models.list()
++                remote_models = {model.id for model in response.data}
++            except Exception as exc:
++                logger.warning(
++                    "Could not list remote models; retaining configured priority: %s",
++                    exc,
++                )
++                self._available_models = list(self._model_priority)
++                return self._available_models
++            self._available_models = [
++                model for model in self._model_priority if model in remote_models
++            ]
++            if not self._available_models:
++                raise RuntimeError(
++                    "None of the configured AI models are exposed by the endpoint"
++                )
++            return self._available_models
++
++    @staticmethod
++    def _is_throttled(exc: Exception) -> bool:
++        status_code = getattr(exc, "status_code", None)
++        message = str(exc).lower()
++        return status_code == 429 or any(
++            marker in message
++            for marker in ("429", "rate limit", "quota", "insufficient_quota", "额度")
++        )
++
++    @property
++    def models_used(self) -> List[str]:
++        return list(self._models_used)
++
+     async def _do_request(
+         self,
+         *,
+@@ -653,6 +745,9 @@ def _create_chained_client(config: AIConfig) -> ChainedAIClient:
+         cfg = AIConfig(
+             provider=provider,
+             model=defaults.get("model", config.model),
++            model_priority=(
++                config.model_priority if provider == config.provider else None
++            ),
+             api_key_env=defaults.get("api_key_env", config.api_key_env),
+             base_url=base_url,
+             temperature=config.temperature,
+diff --git a/src/ai/enricher.py b/src/ai/enricher.py
+index fc60f0e..246e3c6 100644
+--- a/src/ai/enricher.py
++++ b/src/ai/enricher.py
+@@ -16,7 +16,6 @@ from rich.progress import (
+     TaskID,
+     TextColumn,
+ )
+-from tenacity import retry, stop_after_attempt, wait_exponential
+ 
+ from .client import AIClient
+ from .localization import normalize_language
+@@ -143,7 +142,6 @@ class ContentEnricher:
+         config = getattr(self.client, "config", None)
+         return max(getattr(config, "enrichment_concurrency", 1), 1)
+ 
+-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10), reraise=True)
+     async def _complete(self, **kwargs: Any) -> str:
+         return await self.client.complete(**kwargs)
+ 
+diff --git a/src/models.py b/src/models.py
+index e99f0c5..ab6ddaa 100644
+--- a/src/models.py
++++ b/src/models.py
+@@ -190,6 +190,7 @@ class AIConfig(BaseModel):
+     provider: AIProvider
+     provider_chain: Optional[str] = None
+     model: str
++    model_priority: Optional[List[str]] = None
+     base_url: Optional[str] = None
+     api_key_env: str
+     temperature: float = 0.3
+@@ -212,6 +213,18 @@ class AIConfig(BaseModel):
+             raise ValueError(f"invalid language code: {invalid[0]!r}")
+         return languages
+ 
++    @field_validator("model_priority")
++    @classmethod
++    def validate_model_priority(
++        cls, models: Optional[List[str]]
++    ) -> Optional[List[str]]:
++        if models is None:
++            return None
++        cleaned = [model.strip() for model in models if model.strip()]
++        if not cleaned:
++            raise ValueError("model_priority must contain at least one model")
++        return list(dict.fromkeys(cleaned))
++
+ 
+ class GitHubSourceConfig(BaseModel):
+     """GitHub source configuration."""
+diff --git a/src/orchestrator.py b/src/orchestrator.py
+index 2e6ed8f..2a5a3da 100644
+--- a/src/orchestrator.py
++++ b/src/orchestrator.py
+@@ -1,6 +1,7 @@
+ """Main orchestrator coordinating the entire workflow."""
+ 
+ import asyncio
++import os
+ from collections import defaultdict
+ from dataclasses import dataclass, field
+ from datetime import datetime, timedelta, timezone
+@@ -217,6 +218,12 @@ class HorizonOrchestrator:
+             else None
+         )
+         self.last_fetch_report: Optional[FetchReport] = None
++        self._ai_client = None
++
++    def _get_ai_client(self):
++        if self._ai_client is None:
++            self._ai_client = create_ai_client(self.config.ai)
++        return self._ai_client
+ 
+     async def run(self, force_hours: int = None) -> None:
+         """Execute the complete workflow.
+@@ -312,7 +319,7 @@ class HorizonOrchestrator:
+                     from pathlib import Path
+ 
+                     post_filename = f"{today}-summary-{lang}.md"
+-                    posts_dir = Path("docs/_posts")
++                    posts_dir = Path(os.getenv("HORIZON_DOCS_DIR", "docs")) / "_posts"
+                     posts_dir.mkdir(parents=True, exist_ok=True)
+ 
+                     dest_path = safe_output_path(posts_dir, post_filename)
+@@ -373,6 +380,12 @@ class HorizonOrchestrator:
+                 "Horizon completed successfully![/bold green]"
+             )
+             usage = get_usage_snapshot()
++            models_used = getattr(self._ai_client, "models_used", [])
++            if models_used:
++                self.console.print(
++                    f"\n{self.icons['ai']} Models used this run: "
++                    f"{', '.join(models_used)}"
++                )
+             if usage.total_tokens > 0:
+                 self.console.print(
+                     f"\n{self.icons['tokens']} Token usage this run: "
+@@ -421,7 +434,8 @@ class HorizonOrchestrator:
+             List[ContentItem]: All fetched items
+         """
+         self.last_fetch_report = None
+-        async with httpx.AsyncClient(timeout=30.0) as client:
++        proxy = os.getenv("HORIZON_FETCH_PROXY") or None
++        async with httpx.AsyncClient(timeout=30.0, proxy=proxy) as client:
+             tasks = []
+ 
+             # GitHub sources
+@@ -647,7 +661,7 @@ class HorizonOrchestrator:
+         items_text = "\n\n".join(lines)
+ 
+         try:
+-            ai_client = create_ai_client(self.config.ai)
++            ai_client = self._get_ai_client()
+             response = await ai_client.complete(
+                 system=TOPIC_DEDUP_SYSTEM,
+                 user=TOPIC_DEDUP_USER.format(items=items_text),
+@@ -1007,7 +1021,7 @@ class HorizonOrchestrator:
+         self.console.print(
+             f"   Re-analyzing {len(expanded)} Twitter items with reply context...\n"
+         )
+-        ai_client = create_ai_client(self.config.ai)
++        ai_client = self._get_ai_client()
+         analyzer = ContentAnalyzer(ai_client, self.profiles, console=self.console)
+         await analyzer.analyze_batch(expanded)
+ 
+@@ -1026,7 +1040,7 @@ class HorizonOrchestrator:
+         self.console.print(
+             f"{self.icons['enrich']} Enriching with background knowledge..."
+         )
+-        ai_client = create_ai_client(self.config.ai)
++        ai_client = self._get_ai_client()
+         enricher = ContentEnricher(
+             ai_client,
+             self.profiles,
+@@ -1056,7 +1070,7 @@ class HorizonOrchestrator:
+         """
+         self.console.print(f"{self.icons['ai']} Analyzing content with AI...")
+ 
+-        ai_client = create_ai_client(self.config.ai)
++        ai_client = self._get_ai_client()
+         analyzer = ContentAnalyzer(ai_client, self.profiles, console=self.console)
+ 
+         return await analyzer.analyze_batch(items)
+diff --git a/tests/test_model_router.py b/tests/test_model_router.py
+new file mode 100644
+index 0000000..fb57849
+--- /dev/null
++++ b/tests/test_model_router.py
+@@ -0,0 +1,160 @@
++"""Tests for the same-endpoint model priority router."""
++
++import asyncio
++from types import SimpleNamespace
++
++import httpx
++import pytest
++
++from src.ai.client import OpenAIClient
++from src.models import AIConfig, AIProvider
++
++
++class _Models:
++    def __init__(self, result=None, error=None):
++        self.result = result or []
++        self.error = error
++        self.calls = 0
++
++    async def list(self):
++        self.calls += 1
++        if self.error:
++            raise self.error
++        return SimpleNamespace(data=[SimpleNamespace(id=name) for name in self.result])
++
++
++def _router(priority=("m1", "m2"), remote=("m1", "m2")):
++    router = object.__new__(OpenAIClient)
++    router.config = SimpleNamespace()
++    router.client = SimpleNamespace(models=_Models(remote))
++    router.model = priority[0]
++    router.provider = "ali"
++    router._routing_enabled = True
++    router._model_priority = list(priority)
++    router._available_models = None
++    router._disabled_models = set()
++    router._models_used = []
++    router._model_init_lock = asyncio.Lock()
++    return router
++
++
++def test_model_priority_intersects_in_configured_order():
++    router = _router(("m1", "m2", "m3"), ("m3", "m1"))
++    assert asyncio.run(router._get_available_models()) == ["m1", "m3"]
++
++
++def test_model_list_failure_retains_configured_models():
++    router = _router()
++    router.client.models = _Models(error=RuntimeError("unavailable"))
++    assert asyncio.run(router._get_available_models()) == ["m1", "m2"]
++
++
++def test_no_matching_model_fails_explicitly():
++    router = _router(("m1",), ("other",))
++    with pytest.raises(RuntimeError, match="None of the configured"):
++        asyncio.run(router._get_available_models())
++
++
++def test_concurrent_initialization_lists_models_once():
++    router = _router()
++
++    async def run():
++        return await asyncio.gather(*(router._get_available_models() for _ in range(8)))
++
++    results = asyncio.run(run())
++    assert all(result == ["m1", "m2"] for result in results)
++    assert router.client.models.calls == 1
++
++
++def test_single_model_config_is_backward_compatible(monkeypatch):
++    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-only")
++    config = AIConfig(
++        provider=AIProvider.ALI,
++        model="qwen-plus",
++        api_key_env="DASHSCOPE_API_KEY",
++    )
++    client = OpenAIClient(config)
++    assert client._model_priority == ["qwen-plus"]
++    assert client._routing_enabled is False
++    assert asyncio.run(client._get_available_models()) == ["qwen-plus"]
++    asyncio.run(client._http_client.aclose())
++
++
++def test_openai_client_disables_sdk_retries_and_environment_proxy(monkeypatch):
++    captured = {}
++
++    class FakeAsyncOpenAI:
++        def __init__(self, **kwargs):
++            captured.update(kwargs)
++
++    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-only")
++    monkeypatch.setattr("src.ai.client.AsyncOpenAI", FakeAsyncOpenAI)
++    client = OpenAIClient(
++        AIConfig(
++            provider=AIProvider.ALI,
++            model="m1",
++            api_key_env="DASHSCOPE_API_KEY",
++        )
++    )
++    assert captured["max_retries"] == 0
++    assert captured["timeout"] == 180.0
++    transport = captured["http_client"]._transport
++    assert isinstance(transport, httpx.AsyncHTTPTransport)
++    assert not hasattr(transport, "_pool") or transport._pool._proxy is None
++    asyncio.run(client._http_client.aclose())
++
++
++def test_ordinary_error_retries_once_then_falls_back():
++    router = _router()
++    calls = []
++
++    async def complete_once(*_args):
++        calls.append(router.model)
++        if router.model == "m1":
++            raise RuntimeError("temporary")
++        return "ok"
++
++    router._complete_once = complete_once
++    assert asyncio.run(router.complete("system", "user", 0.2, 100)) == "ok"
++    assert calls == ["m1", "m1", "m2"]
++    assert router.models_used == ["m2"]
++
++
++def test_429_disables_model_without_retry_and_falls_back():
++    router = _router()
++    calls = []
++
++    async def complete_once(*_args):
++        calls.append(router.model)
++        if router.model == "m1":
++            error = RuntimeError("rate limited")
++            error.status_code = 429
++            raise error
++        return "ok"
++
++    router._complete_once = complete_once
++    assert asyncio.run(router.complete("system", "user", 0.2, 100)) == "ok"
++    assert calls == ["m1", "m2"]
++    assert router._disabled_models == {"m1"}
++
++
++def test_usage_and_json_constraints_are_preserved():
++    router = _router(("m1",), ("m1",))
++    router.temperature = 0.3
++    router.max_tokens = 4096
++    router._supports_temperature = True
++    router._use_max_completion_tokens = False
++    captured = {}
++
++    async def create(**kwargs):
++        captured.update(kwargs)
++        usage = SimpleNamespace(prompt_tokens=3, completion_tokens=2)
++        choice = SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'))
++        return SimpleNamespace(usage=usage, choices=[choice])
++
++    router.client.chat = SimpleNamespace(
++        completions=SimpleNamespace(create=create)
++    )
++    result = asyncio.run(router.complete("system", "user"))
++    assert result == '{"ok": true}'
++    assert captured["response_format"] == {"type": "json_object"}
+

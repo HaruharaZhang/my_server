@@ -1,0 +1,23 @@
+---
+interface Props {
+	index: string;
+	label: string;
+	tone?: 'violet' | 'blue' | 'rose' | 'night' | 'silver';
+	ratio?: 'landscape' | 'portrait' | 'vertical' | 'square' | 'wide' | 'video' | 'cinema';
+}
+
+const {
+	index,
+	label,
+	tone = 'violet',
+	ratio = 'landscape',
+} = Astro.props;
+---
+
+<div class:list={['artwork-placeholder', `tone-${tone}`, `ratio-${ratio}`]} role="img" aria-label={`${label} photo placeholder`}>
+	<div class="orb orb-a"></div>
+	<div class="orb orb-b"></div>
+	<div class="horizon"></div>
+	<span class="art-index">{index}</span>
+	<span class="art-label">{label}</span>
+</div>

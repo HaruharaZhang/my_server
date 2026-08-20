@@ -1,0 +1,35 @@
+{
+  "paths": {
+    "cache_dir": "/opt/dyyjs-youtube/cache",
+    "state_dir": "/opt/dyyjs-youtube/state",
+    "log_dir": "/opt/dyyjs-youtube/logs",
+    "catalog_path": "/opt/dyyjs-youtube/state/catalog.json",
+    "killswitch_path": "/opt/dyyjs-youtube/state/killswitch.flag",
+    "publish_path": "/var/www/dyyjs/youtube/history/index.html",
+    "image_dir": "/var/www/dyyjs/youtube/history/images"
+  },
+  "network": {
+    "proxy": "http://127.0.0.1:7890",
+    "listen_host": "127.0.0.1",
+    "listen_port": 8090
+  },
+  "limits": {
+    "max_concurrent_streams": 1,
+    "auth_window_seconds": 300,
+    "auth_max_failures": 20,
+    "max_duration_seconds": 14400,
+    "image_max_bytes": 5242880,
+    "image_max_width": 640,
+    "cache_retention_days": 30,
+    "max_cached_videos": 1,
+    "chunk_size": 65536,
+    "subscriber_queue_size": 64,
+    "idle_cancel_seconds": 10
+  },
+  "youtube": {
+    "format_compat": "b[height<=720][ext=mp4][vcodec~='^avc1'][acodec~='^mp4a']/b[height<=720][ext=mp4]/bv*[height<=720][vcodec~='^avc1']+ba[acodec~='^mp4a']",
+    "format_high": "bv*[height<=720][vcodec~='^avc1']+ba[acodec~='^mp4a']/b[height<=720][ext=mp4][vcodec~='^avc1'][acodec~='^mp4a']/b[height<=720][ext=mp4]",
+    "allowed_hosts": ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"],
+    "allowed_thumbnail_hosts": ["i.ytimg.com", "yt3.ggpht.com", "yt3.googleusercontent.com"]
+  }
+}

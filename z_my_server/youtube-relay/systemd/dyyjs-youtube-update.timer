@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily yt-dlp update
+
+[Timer]
+OnCalendar=*-*-* 03:10 Asia/Shanghai
+Persistent=true
+
+[Install]
+WantedBy=timers.target

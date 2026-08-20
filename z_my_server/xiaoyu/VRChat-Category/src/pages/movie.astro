@@ -1,0 +1,220 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { movieCategories, movies } from '../data/movies';
+
+const movieRows = [0, 1].map((row) => movies.filter((_, index) => index % 2 === row));
+const categoryLabels = Object.fromEntries(movieCategories.map((category) => [category.id, category.label]));
+const platformNames = { douyin: '抖音', bilibili: 'Bilibili' } as const;
+---
+
+<BaseLayout title="Movie" bodyClass="movie-page">
+	<div class="movie-experience">
+		<p class="mobile-scroll-guide"><span>SWIPE UP TO DISCOVER</span><i aria-hidden="true">↓</i></p>
+
+		<div class="movie-viewport" data-movie-viewport>
+			<div class="movie-wall" data-movie-wall>
+				{movieRows.map((row) => (
+					<div class="movie-row">
+						{row.map((movie) => (
+							<article
+								class:list={['movie-card', `movie-card-${movie.format}`]}
+								data-movie-category={movie.category}
+								style={`--movie-ratio: ${movie.ratio}; --movie-order: ${Number(movie.index)}`}
+							>
+								<div class="movie-frame">
+									<img src={movie.thumbnail} alt="" loading="lazy" referrerpolicy="no-referrer" />
+									<div class="movie-tags" title={movie.resolution}>
+										<span>{categoryLabels[movie.category]}</span><span>{movie.aspectLabel}</span>
+									</div>
+									<button class="movie-play" type="button" data-movie-play aria-label={`在页面内播放《${movie.title}》`}>▶</button>
+									<div class="movie-platforms">
+										{movie.platforms.map((platform) => (
+											<a
+												class:list={['movie-platform-link', `movie-platform-${platform.id}`]}
+												href={platform.url}
+												target="_blank"
+												rel="noreferrer"
+												title={`在 ${platformNames[platform.id]} 观看`}
+												aria-label={`在 ${platformNames[platform.id]} 观看《${movie.title}》`}
+											>
+												<span class:list={['movie-platform-icon', `movie-platform-icon-${platform.id}`]} aria-hidden="true">
+													{platform.id === 'douyin' ? '♪' : ''}
+												</span>
+											</a>
+										))}
+									</div>
+									<iframe
+										class="movie-embed"
+										data-movie-embed
+										data-src={movie.embedUrl}
+										title={`视频播放器：${movie.title}`}
+										allow="autoplay; fullscreen; picture-in-picture"
+										referrerpolicy="unsafe-url"
+										allowfullscreen
+										hidden
+									></iframe>
+									<button class="movie-close" type="button" data-movie-close aria-label={`关闭《${movie.title}》播放器`} hidden>×</button>
+								</div>
+								<div class="movie-meta">
+									<span>{movie.index}</span>
+									<h2 title={movie.title}>{movie.title}</h2>
+									<time>{movie.duration}</time>
+								</div>
+							</article>
+						))}
+					</div>
+				))}
+			</div>
+		</div>
+
+		<button class="edge-start-button movie-start-button" type="button" data-movie-start aria-label="返回视频列表起点" disabled>
+			<span aria-hidden="true">«</span>
+			<small>START</small>
+		</button>
+
+		<div class="movie-toolbar">
+			<div class="movie-filters">
+				<button type="button" data-movie-filter="all" aria-pressed="true">ALL</button>
+				{movieCategories.map((category) => (
+					<button type="button" data-movie-filter={category.id} aria-pressed="false">{category.label}</button>
+				))}
+			</div>
+			<div class="movie-arrows">
+				<button type="button" data-movie-previous aria-label="Scroll movies left">←</button>
+				<button type="button" data-movie-next aria-label="Scroll movies right">→</button>
+			</div>
+			<div class="movie-progress" aria-hidden="true"><i data-movie-progress></i></div>
+			<p class="movie-scroll-cue"><i></i>SCROLL DOWN OR SWIPE</p>
+		</div>
+	</div>
+</BaseLayout>
+
+<script>
+	const viewport = document.querySelector<HTMLElement>('[data-movie-viewport]');
+	const wall = document.querySelector<HTMLElement>('[data-movie-wall]');
+	const progress = document.querySelector<HTMLElement>('[data-movie-progress]');
+	const startButton = document.querySelector<HTMLButtonElement>('[data-movie-start]');
+	const previous = document.querySelector<HTMLButtonElement>('[data-movie-previous]');
+	const next = document.querySelector<HTMLButtonElement>('[data-movie-next]');
+	const filterButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-movie-filter]'));
+	const cards = Array.from(document.querySelectorAll<HTMLElement>('.movie-card'));
+	const playButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-movie-play]'));
+	const closeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-movie-close]'));
+	const desktop = window.matchMedia('(min-width: 801px)');
+	const categoryFilters = ['daily', 'tutorial', 'dance'];
+	let frame = 0;
+	let layoutFrame = 0;
+
+	const updatePosition = () => {
+		if (!viewport || !wall) return;
+		const maximum = Math.max(wall.scrollWidth - viewport.clientWidth, 1);
+		const ratio = Math.min(Math.max(viewport.scrollLeft / maximum, 0), 1);
+		progress?.style.setProperty('transform', `scaleX(${ratio})`);
+		if (startButton) startButton.disabled = viewport.scrollLeft <= 1;
+		if (previous) previous.disabled = viewport.scrollLeft <= 1;
+		if (next) next.disabled = viewport.scrollLeft >= maximum - 1;
+	};
+
+	const updateRowMode = () => {
+		if (!wall) return;
+		window.cancelAnimationFrame(layoutFrame);
+		wall.classList.remove('is-single-row');
+
+		if (!desktop.matches) {
+			updatePosition();
+			return;
+		}
+
+		layoutFrame = window.requestAnimationFrame(() => {
+			const referenceWidth = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) * 11;
+			const shouldUseSingleRow = cards
+				.filter((card) => !card.hidden)
+				.some((card) => {
+					const movieFrame = card.querySelector<HTMLElement>('.movie-frame');
+					const ratio = Number.parseFloat(card.style.getPropertyValue('--movie-ratio'));
+					if (!movieFrame || !ratio) return false;
+					const referenceHeight = referenceWidth / ratio;
+					return movieFrame.clientHeight / referenceHeight <= 0.3;
+				});
+
+			wall.classList.toggle('is-single-row', shouldUseSingleRow);
+			window.requestAnimationFrame(updatePosition);
+		});
+	};
+
+	const stopMovie = (frame: HTMLElement) => {
+		const embed = frame.querySelector<HTMLIFrameElement>('[data-movie-embed]');
+		const closeButton = frame.querySelector<HTMLButtonElement>('[data-movie-close]');
+		if (embed) {
+			embed.src = 'about:blank';
+			embed.hidden = true;
+		}
+		if (closeButton) closeButton.hidden = true;
+		frame.classList.remove('is-playing');
+	};
+
+	playButtons.forEach((button) => button.addEventListener('click', () => {
+		const frame = button.closest<HTMLElement>('.movie-frame');
+		const embed = frame?.querySelector<HTMLIFrameElement>('[data-movie-embed]');
+		const closeButton = frame?.querySelector<HTMLButtonElement>('[data-movie-close]');
+		if (!frame || !embed || !embed.dataset.src) return;
+
+		document.querySelectorAll<HTMLElement>('.movie-frame.is-playing').forEach((playingFrame) => {
+			if (playingFrame !== frame) stopMovie(playingFrame);
+		});
+		frame.classList.add('is-playing');
+		embed.hidden = false;
+		closeButton?.removeAttribute('hidden');
+		embed.src = embed.dataset.src;
+	}));
+
+	closeButtons.forEach((button) => button.addEventListener('click', () => {
+		const frame = button.closest<HTMLElement>('.movie-frame');
+		if (frame) stopMovie(frame);
+	}));
+
+	const applyFilter = (filter: string, updateHash = true) => {
+		cards.forEach((card) => {
+			const show = filter === 'all' || card.dataset.movieCategory === filter;
+			if (!show) {
+				const frame = card.querySelector<HTMLElement>('.movie-frame.is-playing');
+				if (frame) stopMovie(frame);
+			}
+			card.hidden = !show;
+		});
+		filterButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.movieFilter === filter)));
+		viewport?.scrollTo({ left: 0, behavior: 'auto' });
+		if (updateHash) history.replaceState(null, '', filter === 'all' ? location.pathname : `#${filter}`);
+		updateRowMode();
+	};
+
+	viewport?.addEventListener('wheel', (event) => {
+		if (!desktop.matches || event.ctrlKey) return;
+		const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+		if (Math.abs(delta) < 1) return;
+		const maximum = Math.max(viewport.scrollWidth - viewport.clientWidth, 0);
+		if ((delta < 0 && viewport.scrollLeft <= 1) || (delta > 0 && viewport.scrollLeft >= maximum - 1)) return;
+		event.preventDefault();
+		const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 18 : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerWidth : 1;
+		viewport.scrollLeft += delta * unit;
+	}, { passive: false });
+
+	viewport?.addEventListener('scroll', () => {
+		window.cancelAnimationFrame(frame);
+		frame = window.requestAnimationFrame(updatePosition);
+	}, { passive: true });
+
+	filterButtons.forEach((button) => button.addEventListener('click', () => applyFilter(button.dataset.movieFilter ?? 'all')));
+	startButton?.addEventListener('click', () => viewport?.scrollTo({ left: 0, behavior: 'smooth' }));
+	previous?.addEventListener('click', () => viewport?.scrollBy({ left: -window.innerWidth * .75, behavior: 'smooth' }));
+	next?.addEventListener('click', () => viewport?.scrollBy({ left: window.innerWidth * .75, behavior: 'smooth' }));
+	window.addEventListener('resize', updateRowMode);
+	desktop.addEventListener('change', updateRowMode);
+	window.addEventListener('hashchange', () => {
+		const filter = location.hash.slice(1);
+		applyFilter(categoryFilters.includes(filter) ? filter : 'all', false);
+	});
+
+	const initialFilter = location.hash.slice(1);
+	applyFilter(categoryFilters.includes(initialFilter) ? initialFilter : 'all', false);
+</script>

@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+sha=${1:?commit SHA is required}
+requested=${2:?component list is required}
+base=/opt/my-server
+incoming="$base/incoming/$sha"
+release="$base/releases/$sha"
+rollback_dir="$base/rollback/$sha"
+
+[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid commit SHA" >&2; exit 2; }
+[[ -d "$incoming" && ! -L "$incoming" ]] || { echo "missing release upload" >&2; exit 2; }
+[[ $(stat -c %U "$incoming") == deployer ]] || { echo "unexpected upload owner" >&2; exit 2; }
+[[ ! -e "$release" ]] || { echo "release already exists" >&2; exit 2; }
+
+declare -A allowed=([webpage]=1 [xiaoyu]=1 [status]=1 [news]=1 [youtube]=1 [bilibili]=1 [horizon]=1 [minecraft]=1)
+IFS=, read -r -a components <<< "$requested"
+for component in "${components[@]}"; do
+  if [[ "$component" == all ]]; then
+    components=(webpage xiaoyu status news youtube bilibili horizon minecraft)
+    break
+  fi
+  [[ ${allowed[$component]+yes} ]] || { echo "invalid component: $component" >&2; exit 2; }
+done
+
+install -d -o root -g root -m 0755 "$base/releases"
+mv "$incoming" "$release"
+chown -R root:root "$release"
+find "$release" -type d -exec chmod go-w {} +
+find "$release" -type f -exec chmod go-w {} +
+
+install -d -o root -g root -m 0700 "$rollback_dir"
+
+backup_tree() {
+  local source=$1 name=$2
+  [[ -e "$source" ]] && cp -al "$source" "$rollback_dir/$name"
+}
+
+rollback() {
+  local exit_code=$?
+  trap - ERR
+  echo "deployment failed; restoring previous component files" >&2
+  if [[ -d "$rollback_dir/status-app" ]]; then rm -rf /opt/dyyjs-status/app; cp -a "$rollback_dir/status-app" /opt/dyyjs-status/app; fi
+  if [[ -d "$rollback_dir/news-app" ]]; then rm -rf /opt/dyyjs-news/app; cp -a "$rollback_dir/news-app" /opt/dyyjs-news/app; fi
+  if [[ -d "$rollback_dir/youtube-app" ]]; then rm -rf /opt/dyyjs-youtube/app; cp -a "$rollback_dir/youtube-app" /opt/dyyjs-youtube/app; systemctl restart dyyjs-youtube.service || true; fi
+  if [[ -d "$rollback_dir/bilibili-app" ]]; then rm -rf /opt/dyyjs-bilibili/app; cp -a "$rollback_dir/bilibili-app" /opt/dyyjs-bilibili/app; systemctl restart dyyjs-bilibili.service || true; fi
+  if [[ -f "$rollback_dir/web-index.html" ]]; then cp -a "$rollback_dir/web-index.html" /var/www/dyyjs/index.html; fi
+  if [[ -f "$rollback_dir/news-placeholder.html" ]]; then cp -a "$rollback_dir/news-placeholder.html" /var/www/dyyjs/news-placeholder.html; fi
+  if [[ -f "$rollback_dir/xiaoyu-target" ]]; then ln -sfn "$(cat "$rollback_dir/xiaoyu-target")" /var/www/dyyjs/xiaoyu; fi
+  exit "$exit_code"
+}
+trap rollback ERR
+
+sync_app() {
+  local source=$1 target=$2
+  install -d -m 0755 "$target"
+  rsync -a --delete --exclude deploy.sh --exclude systemd --exclude __pycache__ "$source/" "$target/"
+}
+
+for component in "${components[@]}"; do
+  case "$component" in
+    webpage)
+      [[ -f /var/www/dyyjs/index.html ]] && cp -a /var/www/dyyjs/index.html "$rollback_dir/web-index.html"
+      [[ -f /var/www/dyyjs/news-placeholder.html ]] && cp -a /var/www/dyyjs/news-placeholder.html "$rollback_dir/news-placeholder.html"
+      install -m 0644 "$release/z_my_server/webpage/index.html" /var/www/dyyjs/index.html
+      install -m 0644 "$release/z_my_server/webpage/news-placeholder.html" /var/www/dyyjs/news-placeholder.html
+      ;;
+    xiaoyu)
+      test -f "$release/z_my_server/xiaoyu/VRChat-Category/dist/index.html"
+      readlink -f /var/www/dyyjs/xiaoyu > "$rollback_dir/xiaoyu-target"
+      install -d -m 0755 /opt/dyyjs-xiaoyu/releases
+      install -d -m 0755 "/opt/dyyjs-xiaoyu/releases/$sha"
+      cp -a "$release/z_my_server/xiaoyu/VRChat-Category/dist/." "/opt/dyyjs-xiaoyu/releases/$sha/"
+      ln -sfn "/opt/dyyjs-xiaoyu/releases/$sha" /var/www/dyyjs/xiaoyu.new
+      mv -Tf /var/www/dyyjs/xiaoyu.new /var/www/dyyjs/xiaoyu
+      ;;
+    status)
+      backup_tree /opt/dyyjs-status/app status-app
+      sync_app "$release/z_my_server/status-dashboard" /opt/dyyjs-status/app
+      install -m 0644 /opt/dyyjs-status/app/index.html /var/www/dyyjs/status/index.html
+      install -m 0644 /opt/dyyjs-status/app/assets/status.css /var/www/dyyjs/status/assets/status.css
+      install -m 0644 /opt/dyyjs-status/app/assets/status.js /var/www/dyyjs/status/assets/status.js
+      python3 -m compileall -q /opt/dyyjs-status/app
+      systemctl start dyyjs-status.service
+      ;;
+    news)
+      backup_tree /opt/dyyjs-news/app news-app
+      sync_app "$release/z_my_server/news-pipeline" /opt/dyyjs-news/app
+      /opt/dyyjs-news/venv/bin/python -m compileall -q /opt/dyyjs-news/app
+      ;;
+    youtube)
+      backup_tree /opt/dyyjs-youtube/app youtube-app
+      sync_app "$release/z_my_server/youtube-relay" /opt/dyyjs-youtube/app
+      /opt/dyyjs-youtube/venv/bin/python -m compileall -q /opt/dyyjs-youtube/app
+      systemctl restart dyyjs-youtube.service
+      systemctl is-active --quiet dyyjs-youtube.service
+      ;;
+    bilibili)
+      backup_tree /opt/dyyjs-bilibili/app bilibili-app
+      sync_app "$release/z_my_server/bilibili-relay" /opt/dyyjs-bilibili/app
+      /opt/dyyjs-bilibili/venv/bin/python -m compileall -q /opt/dyyjs-bilibili/app
+      systemctl restart dyyjs-bilibili.service
+      systemctl is-active --quiet dyyjs-bilibili.service
+      ;;
+    horizon)
+      sync_app "$release/z_my_server/horizon-deployment" /opt/dyyjs-horizon-deploy
+      /opt/dyyjs-horizon-deploy/scripts/install-server.sh
+      ;;
+    minecraft)
+      install -m 0755 "$release/z_my_server/minecraft-server/backup-world.sh" /opt/dyyjs-minecraft/backup-world.sh
+      install -m 0755 "$release/z_my_server/minecraft-server/rcon.py" /opt/dyyjs-minecraft/rcon.py
+      install -m 0644 "$release/z_my_server/minecraft-server/index.html" /var/www/dyyjs/minecraft/index.html
+      ;;
+  esac
+done
+
+trap - ERR
+
+ln -sfn "$release" "$base/current.new"
+mv -Tf "$base/current.new" "$base/current"
+printf '%s %s\n' "$sha" "$requested" > "$base/deployed-release"
+rm -rf -- "$rollback_dir"
+
+mapfile -t old_releases < <(find "$base/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -nr | tail -n +6 | cut -d' ' -f2-)
+if ((${#old_releases[@]})); then
+  rm -rf -- "${old_releases[@]}"
+fi
+
+echo "deployed $sha: $requested"

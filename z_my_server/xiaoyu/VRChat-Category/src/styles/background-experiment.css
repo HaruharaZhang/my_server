@@ -1,0 +1,69 @@
+/*
+ * Reversible background experiment.
+ * Remove the background-experiment.css import from global.css to restore the previous appearance.
+ */
+
+body {
+	position: relative;
+	isolation: isolate;
+}
+
+body::before,
+body::after {
+	content: '';
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+}
+
+body::before {
+	z-index: -2;
+	background: var(--site-background-image) 62% center / cover no-repeat;
+	opacity: .6;
+}
+
+@media (max-width: 800px) {
+	body.about-page::before {
+		background-position: 65% center;
+	}
+}
+
+@media (min-width: 801px) {
+	body.about-page::before {
+		background-image: none;
+		opacity: 0;
+	}
+
+	body.about-page .about-profile {
+		background-color: #fbfbfa;
+		background-image:
+			linear-gradient(rgba(255, 255, 255, .4), rgba(255, 255, 255, .4)),
+			var(--site-background-image);
+		background-position: center, 65% center;
+		background-size: cover, cover;
+		background-repeat: no-repeat;
+	}
+}
+
+body::after {
+	z-index: -1;
+	background: linear-gradient(
+		90deg,
+		rgba(255, 255, 255, .96) 0%,
+		rgba(255, 255, 255, .78) 24%,
+		rgba(255, 255, 255, .38) 48%,
+		rgba(255, 255, 255, 0) 72%
+	);
+}
+
+body > main,
+body > .site-footer {
+	position: relative;
+	z-index: 0;
+}
+
+.home-toolbar,
+.portfolio-toolbar,
+.movie-toolbar {
+	background: #fbfbfa;
+}

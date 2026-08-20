@@ -1,0 +1,15 @@
+[Unit]
+Description=东云研究所静态状态采集
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/dyyjs-status/app/collector.py --config /opt/dyyjs-status/app/config.json
+User=root
+Group=root
+Nice=10
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true
+ReadWritePaths=/opt/dyyjs-status/state /var/www/dyyjs/status
+
