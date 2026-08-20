@@ -5,12 +5,14 @@ sha=${1:?commit SHA is required}
 requested=${2:?component list is required}
 base=/opt/my-server
 incoming="$base/incoming/$sha"
+archive="$base/incoming/$sha.tar.gz"
 release="$base/releases/$sha"
 rollback_dir="$base/rollback/$sha"
+archive_base=https://codeload.github.com/HaruharaZhang/my_server/tar.gz
+proxy=http://127.0.0.1:7890
+node_bin=/opt/dyyjs-youtube/node24-runtime/bin
 
 [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid commit SHA" >&2; exit 2; }
-[[ -d "$incoming" && ! -L "$incoming" ]] || { echo "missing release upload" >&2; exit 2; }
-[[ $(stat -c %U "$incoming") == deployer ]] || { echo "unexpected upload owner" >&2; exit 2; }
 [[ ! -e "$release" ]] || { echo "release already exists" >&2; exit 2; }
 
 declare -A allowed=([webpage]=1 [xiaoyu]=1 [status]=1 [news]=1 [youtube]=1 [bilibili]=1 [horizon]=1 [minecraft]=1)
@@ -22,6 +24,31 @@ for component in "${components[@]}"; do
   fi
   [[ ${allowed[$component]+yes} ]] || { echo "invalid component: $component" >&2; exit 2; }
 done
+
+if [[ -e "$incoming" ]]; then
+  [[ -d "$incoming" && ! -L "$incoming" ]] || { echo "unsafe incoming path" >&2; exit 2; }
+  rm -rf -- "$incoming"
+fi
+rm -f -- "$archive"
+install -d -o deployer -g deployer -m 0700 "$incoming"
+runuser -u deployer -- curl --fail --location --silent --show-error \
+  --connect-timeout 15 --max-time 600 --retry 5 --retry-all-errors \
+  --retry-delay 2 --proxy "$proxy" --output "$archive" "$archive_base/$sha"
+expected_root="my_server-$sha"
+tar -tzf "$archive" | awk -F/ -v root="$expected_root" '
+  $1 != root { print "unexpected archive path: " $0 > "/dev/stderr"; exit 1 }
+'
+runuser -u deployer -- tar -xzf "$archive" --strip-components=1 \
+  --no-same-owner --no-same-permissions -C "$incoming"
+rm -f -- "$archive"
+
+if [[ " ${components[*]} " == *" xiaoyu "* ]]; then
+  runuser -u deployer -- env \
+    "PATH=$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" ASTRO_TELEMETRY_DISABLED=1 \
+    bash -c 'cd "$1"; npm ci --ignore-scripts; npm run build' _ \
+    "$incoming/z_my_server/xiaoyu/VRChat-Category"
+fi
 
 install -d -o root -g root -m 0755 "$base/releases"
 mv "$incoming" "$release"
