@@ -24,12 +24,6 @@ jobs:
         if: vars.DEPLOY_ENABLED == 'true'
         with:
           fetch-depth: 2
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        if: vars.DEPLOY_ENABLED == 'true'
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: z_my_server/xiaoyu/VRChat-Category/package-lock.json
       - name: Select components
         if: vars.DEPLOY_ENABLED == 'true'
         id: changes
@@ -39,10 +33,6 @@ jobs:
         run: |
           components=$(deploy/ci/select-components.sh "$BEFORE" "$SHA")
           echo "components=$components" >> "$GITHUB_OUTPUT"
-      - name: Build Xiaoyu when needed
-        if: vars.DEPLOY_ENABLED == 'true' && contains(steps.changes.outputs.components, 'xiaoyu')
-        working-directory: z_my_server/xiaoyu/VRChat-Category
-        run: npm ci && npm run build
       - name: Configure SSH
         if: vars.DEPLOY_ENABLED == 'true' && steps.changes.outputs.components != ''
         env:
@@ -53,19 +43,7 @@ jobs:
           install -m 600 /dev/null ~/.ssh/deploy_key
           printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/deploy_key
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-      - name: Upload immutable release
-        if: vars.DEPLOY_ENABLED == 'true' && steps.changes.outputs.components != ''
-        env:
-          HOST: ${{ vars.DEPLOY_HOST }}
-          PORT: ${{ vars.DEPLOY_PORT }}
-          USER: ${{ vars.DEPLOY_USER }}
-          SHA: ${{ github.sha }}
-        run: |
-          ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" "install -d -m 700 /opt/my-server/incoming/$SHA"
-          rsync -az --delete --exclude .git \
-            -e "ssh -i $HOME/.ssh/deploy_key -p $PORT" \
-            ./ "$USER@$HOST:/opt/my-server/incoming/$SHA/"
-      - name: Activate release
+      - name: Fetch and activate release
         if: vars.DEPLOY_ENABLED == 'true' && steps.changes.outputs.components != ''
         env:
           COMPONENTS: ${{ steps.changes.outputs.components }}
