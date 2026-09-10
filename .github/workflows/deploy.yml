@@ -151,8 +151,25 @@ jobs:
           USER: ${{ vars.DEPLOY_USER }}
           SHA: ${{ steps.target.outputs.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" \
-            sudo /usr/local/sbin/deploy-my-server deploy "$SHA" "$COMPONENTS"
+          IFS=, read -r -a requested <<< "$COMPONENTS"
+          bootstrap=false
+          remaining=()
+          for component in "${requested[@]}"; do
+            if [[ "$component" == deployment ]]; then
+              bootstrap=true
+            else
+              remaining+=("$component")
+            fi
+          done
+          if [[ "$bootstrap" == true ]]; then
+            ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" \
+              sudo /usr/local/sbin/deploy-my-server deploy "$SHA" deployment
+          fi
+          if (( ${#remaining[@]} )); then
+            joined=$(IFS=,; echo "${remaining[*]}")
+            ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" \
+              sudo /usr/local/sbin/deploy-my-server deploy "$SHA" "$joined"
+          fi
 
       - name: Roll back
         if: steps.enabled.outputs.value == 'true' && inputs.operation == 'rollback'

@@ -62,6 +62,35 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  webpage:
+    name: Homepage build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: z_my_server/webpage
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "24.18.0"
+          cache: npm
+          cache-dependency-path: z_my_server/webpage/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run check:content
+      - run: npm run build
+      - name: Validate homepage output
+        run: |
+          test -f dist/index.html
+          test -f dist/sw.js
+          test -f dist/favicon.png
+          test -f dist/licenses/rhinelabui-mit.txt
+          test ! -e dist/favicon.svg
+          test ! -e dist/icons/app-icon.svg
+          grep -q '桂ICP备19006338号-1' dist/assets/index-*.js
+          grep -q 'LBEILC/RhineLabUI' dist/assets/index-*.js
+          jq -e '(.icons | length == 3) and all(.icons[]; .type == "image/png")' \
+            dist/manifest.webmanifest >/dev/null
+
   static:
     name: Static checks
     runs-on: ubuntu-latest
@@ -84,7 +113,7 @@ jobs:
   required:
     name: CI / required
     if: always()
-    needs: [secrets, python, astro, static]
+    needs: [secrets, python, astro, webpage, static]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks
@@ -92,9 +121,11 @@ jobs:
           SECRETS_RESULT: ${{ needs.secrets.result }}
           PYTHON_RESULT: ${{ needs.python.result }}
           ASTRO_RESULT: ${{ needs.astro.result }}
+          WEBPAGE_RESULT: ${{ needs.webpage.result }}
           STATIC_RESULT: ${{ needs.static.result }}
         run: |
           test "$SECRETS_RESULT" = success
           test "$PYTHON_RESULT" = success
           test "$ASTRO_RESULT" = success
+          test "$WEBPAGE_RESULT" = success
           test "$STATIC_RESULT" = success
