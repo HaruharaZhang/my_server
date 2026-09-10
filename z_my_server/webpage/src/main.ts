@@ -69,7 +69,7 @@ $("#stage").innerHTML = `
     <article id="detail-content" class="detail-content"></article>
   </section>
   <div class="powered">POWERED BY <b>RHINE LAB</b><i></i></div>
-  <footer class="system-footer"><span><i class="status-light"></i> SESSION AUTHORIZED</span><span>JOYCE MOORE <i>／</i> <span id="clock">00:00:00</span></span><button data-action="replay" title="重播启动流程">REINITIALIZE ↗</button></footer>
+  <footer class="system-footer"><span><i class="status-light"></i> SESSION AUTHORIZED</span><span>DOCTOR <i>／</i> <span id="clock">00:00:00</span></span><button data-action="replay" title="重播启动流程">REINITIALIZE ↗</button></footer>
   <footer class="site-attribution" aria-label="备案与网页来源">
     <span class="filing-links"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备19006338号-1</a><i>·</i><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备19006338号-3</a></span>
     <span class="source-links">网页来源：<a href="https://github.com/LBEILC/RhineLabUI" target="_blank" rel="noopener noreferrer">LBEILC/RhineLabUI</a><i>·</i><a href="/licenses/rhinelabui-mit.txt" target="_blank" rel="noopener noreferrer">MIT Code © 2026 LBEILC</a></span>
@@ -504,7 +504,7 @@ function setTab(tab: string, sound = true) {
             .slice(0, 4)
             .map(
               (entry) =>
-                `<div class="log-row"><span>${entry.time}</span><span>JOYCE MOORE</span><b>READ AUTHORIZED</b></div>`,
+                `<div class="log-row"><span>${entry.time}</span><span>DOCTOR</span><b>READ AUTHORIZED</b></div>`,
             )
             .join(
               "",
@@ -620,7 +620,7 @@ function motionSettingsMarkup() {
     : "当前使用完整动效。"}</p>${prefs.reduced ? '<button data-action="enable-motion">启用完整动效并重播 ↻</button>' : ""}</div>`;
 }
 function settingsMarkup() {
-  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">JOYCE MOORE <span>·</span> SESSION AUTHORIZED</p><div class="settings-list">${audioSettingsMarkup(prefs)}<label><div><strong>REDUCED MOTION</strong><span>跳过开机动画，简化选档、镜头和文字动效</span></div><input type="checkbox" data-pref="reduced" ${prefs.reduced ? "checked" : ""}/><i class="toggle"></i></label></div>${motionSettingsMarkup()}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts"><span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p></div><div class="settings-bottom">${document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
+  return `<h2>SYSTEM SETTINGS<small>终端偏好设置</small></h2><p class="settings-intro">DOCTOR <span>·</span> SESSION AUTHORIZED</p><div class="settings-list">${audioSettingsMarkup(prefs)}<label><div><strong>REDUCED MOTION</strong><span>跳过开机动画，简化选档、镜头和文字动效</span></div><input type="checkbox" data-pref="reduced" ${prefs.reduced ? "checked" : ""}/><i class="toggle"></i></label></div>${motionSettingsMarkup()}${qualityMarkup(prefs.rendering)}${pwaSettingsMarkup()}<div class="settings-shortcuts"><span>KEYBOARD CONTROLS</span><p><kbd>←</kbd><kbd>→</kbd> 切列 <kbd>↑</kbd><kbd>↓</kbd> 选档 <kbd>ENTER</kbd> 读取 <kbd>/</kbd> 检索 <kbd>ESC</kbd> 返回</p></div><div class="settings-bottom">${document.fullscreenEnabled ? '<button data-action="fullscreen">FULLSCREEN <span>↗</span></button>' : ''}<button data-action="restart">REINITIALIZE SYSTEM <span>↻</span></button></div><div class="modal-bottom"><span>ANALYSIS OS / 1.0 · 使用 MiSans 字体（小米） <a href="${assetUrl("fonts/MiSans-license.pdf")}" target="_blank" rel="noopener">字体许可</a></span><span>POWERED BY RHINE LAB</span></div>`;
 }
 
 document.addEventListener("input", (e) => {
@@ -838,7 +838,7 @@ function bootFrame(t: number) {
   let caption =
     motion.step === "auth"
       ? t < 9.52
-        ? "身份信息确认：JOYCE MOORE"
+        ? "身份信息确认：DOCTOR"
         : t < 11.84
           ? "请求已接收"
           : "开始处理"
@@ -939,7 +939,7 @@ async function start() {
       // With unicode-range faces, preload the opening's actual characters,
       // not every font shard. Other archive text loads on demand.
       document.fonts.load("300 20px MiSans", "ACCESS WELCOME TO INTERNAL DATABASE"),
-      document.fonts.load("400 20px MiSans", "身份信息确认请求已接收开始处理权限验证通过欢迎访问莱茵生命内部资料档案编号保密级别商业区选择档案：0123456789 JOYCE MOORE"),
+      document.fonts.load("400 20px MiSans", "身份信息确认请求已接收开始处理权限验证通过欢迎访问莱茵生命内部资料档案编号保密级别商业区选择档案：0123456789 DOCTOR"),
       document.fonts.load("600 20px MiSans", "SYNTHESIZE INFORMATION ANALYSIS OS"),
       document.fonts.load("700 20px MiSans", "RHINE LAB WELCOME TO INTERNAL DATABASE"),
     ]);
