@@ -9,6 +9,11 @@ proxy=http://127.0.0.1:7890
 node_bin=/opt/dyyjs-youtube/node24-runtime/bin
 lock_file=/run/lock/my-server-deploy.lock
 allowed_components=(webpage xiaoyu status news youtube bilibili horizon minecraft deployment)
+webpage_items=(
+  manifest.webmanifest favicon.png sw.js pwa-build.json
+  update.html update.js archives assets audio fonts icons licenses
+  index.html
+)
 
 usage() {
   echo "usage: deploy-my-server status | deploy <sha> <components> | rollback <sha> <components>" >&2
@@ -215,7 +220,9 @@ sync_app() {
 snapshot_component() {
   case "$1" in
     webpage)
-      backup_item /var/www/dyyjs/index.html webpage-index
+      for item in "${webpage_items[@]}"; do
+        backup_item "/var/www/dyyjs/$item" "webpage-${item//\//_}"
+      done
       backup_item /var/www/dyyjs/news-placeholder.html webpage-news-placeholder
       ;;
     xiaoyu) backup_item /var/www/dyyjs/xiaoyu xiaoyu-link ;;
@@ -269,12 +276,79 @@ snapshot_component() {
 for component in "${components[@]}"; do snapshot_component "$component"; done
 
 deploy_component() {
-  local component=$1 build_dir target
+  local component=$1 build_dir target staged_target item model
   case "$component" in
     webpage)
-      install -m 0644 "$release/z_my_server/webpage/index.html" /var/www/dyyjs/index.html
+      if [[ -f "$release/z_my_server/webpage/package-lock.json" ]]; then
+        build_dir=$(mktemp -d "$base/incoming/webpage-$sha.XXXXXX")
+        cp -a "$release/z_my_server/webpage/." "$build_dir/"
+        chown -R deployer:deployer "$build_dir"
+        runuser -u deployer -- env \
+          "PATH=$node_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+          "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" \
+          bash -c 'cd "$1"; npm ci --ignore-scripts; npm run check:content; npm run build' _ "$build_dir"
+        rm -f -- "$build_dir/dist/assets/archive-cassette.glb" \
+          "$build_dir/dist/assets/archive-assembly.glb"
+        for item in "${webpage_items[@]}"; do
+          [[ -e "$build_dir/dist/$item" ]] || {
+            echo "webpage build is missing required output: $item" >&2
+            return 1
+          }
+        done
+        while IFS= read -r item; do
+          case " ${webpage_items[*]} " in
+            *" $item "*) ;;
+            *) echo "webpage build contains unexpected top-level output: $item" >&2; return 1 ;;
+          esac
+        done < <(find "$build_dir/dist" -mindepth 1 -maxdepth 1 -exec basename {} \; | sort)
+        target="/opt/dyyjs-webpage/releases/$sha"
+        install -d -m 0755 /opt/dyyjs-webpage/releases
+        if [[ -e "$target" ]]; then
+          [[ -d "$target" && -f "$target/.commit-sha" && "$(<"$target/.commit-sha")" == "$sha" ]] || {
+            echo "unsafe or incomplete webpage release exists: $target" >&2
+            return 1
+          }
+          for item in "${webpage_items[@]}"; do
+            [[ -e "$target/$item" ]] || {
+              echo "existing webpage release is missing required output: $item" >&2
+              return 1
+            }
+          done
+        else
+          staged_target=$(mktemp -d "/opt/dyyjs-webpage/releases/.incoming-$sha.XXXXXX")
+          cp -a "$build_dir/dist/." "$staged_target/"
+          printf '%s\n' "$sha" > "$staged_target/.commit-sha"
+          chown -R root:root "$staged_target"
+          find "$staged_target" -type d -exec chmod 0755 {} +
+          find "$staged_target" -type f -exec chmod 0644 {} +
+          mv "$staged_target" "$target"
+        fi
+        rm -rf -- "$build_dir"
+        for item in "${webpage_items[@]}"; do
+          rm -rf -- "/var/www/dyyjs/$item.new"
+          ln -sfn "$target/$item" "/var/www/dyyjs/$item.new"
+          if [[ -d "/var/www/dyyjs/$item" && ! -L "/var/www/dyyjs/$item" ]]; then
+            rm -rf -- "/var/www/dyyjs/$item"
+          fi
+          mv -Tf "/var/www/dyyjs/$item.new" "/var/www/dyyjs/$item"
+        done
+      else
+        for item in "${webpage_items[@]}"; do
+          [[ "$item" == index.html ]] || rm -rf -- "/var/www/dyyjs/$item"
+        done
+        install -m 0644 "$release/z_my_server/webpage/index.html" /var/www/dyyjs/index.html
+      fi
       install -m 0644 "$release/z_my_server/webpage/news-placeholder.html" /var/www/dyyjs/news-placeholder.html
       curl_status / 200
+      if [[ -f "$release/z_my_server/webpage/package-lock.json" ]]; then
+        curl_status /manifest.webmanifest 200
+        curl_status /favicon.png 200
+        curl_status /sw.js 200
+        curl_status /assets/archive-cassette.glb 404
+        model=$(find "$target/assets" -maxdepth 1 -type f -name 'archive-cassette.*.glb' -printf '%f\n' | head -n1)
+        [[ -n "$model" ]] || { echo "versioned homepage model is unavailable" >&2; return 1; }
+        curl_status "/assets/$model" 200
+      fi
       ;;
     xiaoyu)
       build_dir=$(mktemp -d "$base/incoming/xiaoyu-$sha.XXXXXX")
